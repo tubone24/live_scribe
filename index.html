@@ -432,7 +432,9 @@ dialog::backdrop { background: oklch(0% 0 0 / .4); backdrop-filter: blur(2px); }
   const PKEY = 'livescribe.prefs';
   let P;
   try { P = JSON.parse(localStorage.getItem(PKEY)) || {}; } catch { P = {}; }
-  P.hl ??= true; P.ai ??= false; P.model ??= 'qwen3-0.6b'; P.loaded ??= {};
+  P.hl ??= true; P.ai ??= false; P.model ??= 'lfm2-350m';
+  // v2: iPhone で Qwen3 が落ちる問題を受けて既定を軽量モデルに変更
+  if (P.v !== 2) { P.model = 'lfm2-350m'; P.v = 2; delete P.loaded; }
   const save = () => { try { localStorage.setItem(KEY, JSON.stringify(S)); } catch {} };
   const savePrefs = () => { try { localStorage.setItem(PKEY, JSON.stringify(P)); } catch {} };
 
@@ -649,37 +651,19 @@ dialog::backdrop { background: oklch(0% 0 0 / .4); backdrop-filter: blur(2px); }
   });
 
   // ---------- ローカル LLM 要約（Web Worker + WebGPU） ----------
-  const TFJS = 'https://cdn.jsdelivr.net/npm/@huggingface/transformers@4.2.0/+esm';
   const MODELS = {
-    'qwen3-0.6b': { id: 'onnx-community/Qwen3-0.6B-ONNX', label: 'Qwen3 0.6B', size: '約570MB・軽量（おすすめ）' },
-    'tinyswallow-1.5b': { id: 'onnx-community/TinySwallow-1.5B-Instruct-ONNX', label: 'TinySwallow 1.5B', size: '約1.2GB・日本語特化（重い）' },
+    'lfm2-350m': { id: 'onnx-community/LFM2-350M-ONNX', label: 'LFM2 350M', size: '約255MB・最軽量（iPhone 向け・精度は粗め）' },
+    'qwen3-0.6b': { id: 'onnx-community/Qwen3-0.6B-ONNX', label: 'Qwen3 0.6B', size: '約570MB・精度高め（iPhone ではメモリ不足で落ちることあり）' },
+    'tinyswallow-1.5b': { id: 'onnx-community/TinySwallow-1.5B-Instruct-ONNX', label: 'TinySwallow 1.5B', size: '約1.2GB・日本語特化（PC 向け・iPhone 非推奨）' },
   };
-  const WORKER_SRC = [
-    "import { AutoTokenizer, AutoModelForCausalLM, TextStreamer } from '" + TFJS + "';",
-    'let tok, model;',
-    'const files = {};',
-    'const onProgress = (p) => {',
-    "  if (p.status !== 'progress' || !p.total) return;",
-    '  files[p.file] = [p.loaded, p.total];',
-    '  let l = 0, t = 0; for (const [a, b] of Object.values(files)) { l += a; t += b; }',
-    "  postMessage({ type: 'progress', loaded: l, total: t });",
-    '};',
-    'self.onmessage = async ({ data }) => {',
-    '  try {',
-    "    if (data.type === 'load') {",
-    '      tok = await AutoTokenizer.from_pretrained(data.id, { progress_callback: onProgress });',
-    "      model = await AutoModelForCausalLM.from_pretrained(data.id, { dtype: 'q4f16', device: 'webgpu', progress_callback: onProgress });",
-    "      postMessage({ type: 'ready' });",
-    "    } else if (data.type === 'run') {",
-    '      const inputs = tok.apply_chat_template(data.messages, { add_generation_prompt: true, return_dict: true, enable_thinking: false });',
-    "      let text = '';",
-    '      const streamer = new TextStreamer(tok, { skip_prompt: true, skip_special_tokens: true, callback_function: (t) => { text += t; postMessage({ type: "token", text }); } });',
-    '      await model.generate({ ...inputs, max_new_tokens: 200, do_sample: false, streamer });',
-    "      postMessage({ type: 'done', text });",
-    '    }',
-    "  } catch (e) { postMessage({ type: 'error', message: String((e && e.message) || e) }); }",
-    '};',
-  ].join('\n');
+  if (!MODELS[P.model]) P.model = 'lfm2-350m';
+  // モデルがブラウザのキャッシュに実際に残っているか（transformers.js は Cache API の transformers-cache に保存する）
+  const isCached = async (key) => {
+    try {
+      const c = await caches.open('transformers-cache');
+      return (await c.keys()).some((r) => r.url.includes(MODELS[key].id) && /\.onnx(_data)?$/.test(r.url));
+    } catch { return false; }
+  };
 
   const AI = (() => {
     let worker = null, state = 'off', pending = null, lastRunAt = 0;
@@ -699,7 +683,7 @@ dialog::backdrop { background: oklch(0% 0 0 / .4); backdrop-filter: blur(2px); }
       const t = text.replace(/<think>[\s\S]*?(<\/think>|$)/g, '').trim();
       const items = t.split('\n').map((l) => l.trim()).filter(Boolean)
         .map((l) => l.replace(/^([・\-*•●]|\d+[.)．、])\s*/, '').replace(/\*\*/g, '').replace(/[。.]$/, '').trim())
-        .filter((l) => l && !/^[・\s]+$/.test(l));
+        .filter((l) => l && !/^[・\s]+$/.test(l) && !/^(出典|以上|要点|まとめ)[:：]?/.test(l));
       return items.length ? items.slice(0, 6) : null;
     };
     const chunkHTML = (c, isPending) => {
@@ -711,14 +695,19 @@ dialog::backdrop { background: oklch(0% 0 0 / .4); backdrop-filter: blur(2px); }
       const keep = body.scrollTop + body.clientHeight >= body.scrollHeight - 30;
       let html = S.sums.map((c) => chunkHTML(c, false)).join('');
       if (pending) html += chunkHTML(pending, true);
-      if (!html) {
-        html = state === 'idle'
-          ? '<div class="ai-empty">モデルは未ダウンロードです。<button id="aiLoad">モデルを読み込む</button>（' + esc(MODELS[P.model].size.split('・')[0]) + '）</div>'
-          : '<div class="ai-empty">話した内容がある程度たまると、ここに要点の箇条書きが出ます。</div>';
+      if (state === 'idle' || state === 'crashed') {
+        // 要約が既にあっても、読み込み操作は先頭に出す
+        const msg = state === 'crashed'
+          ? '前回、モデルの読み込み中にページが再読み込みされました。<b>メモリ不足</b>の可能性が高いので、設定でより軽いモデルを選んでから読み込んでください。'
+          : cached ? 'モデルはダウンロード済みです。' : `モデルは未ダウンロードです（${esc(MODELS[P.model].size.split('・')[0])}）。`;
+        html = `<div class="ai-empty">${msg}<br><button id="aiLoad">${esc(MODELS[P.model].label)} を読み込む</button></div>` + html;
+      } else if (!html) {
+        html = '<div class="ai-empty">話した内容がある程度たまると、ここに要点の箇条書きが出ます。</div>';
       }
       body.innerHTML = html;
       $('#aiLoad')?.addEventListener('click', load);
-      if (keep) body.scrollTop = body.scrollHeight;
+      if (state === 'idle' || state === 'crashed') body.scrollTop = 0;
+      else if (keep) body.scrollTop = body.scrollHeight;
     };
 
     const pendingSegs = () => S.segs.slice(S.sumUpTo);
@@ -747,9 +736,12 @@ dialog::backdrop { background: oklch(0% 0 0 / .4); backdrop-filter: blur(2px); }
 
     const onMessage = ({ data }) => {
       if (data.type === 'progress') {
-        setStatus(`ダウンロード中 ${mb(data.loaded)} / ${mb(data.total)}`, { busy: true, progress: data.loaded / data.total });
+        setStatus(`${cached ? '読み込み中' : 'ダウンロード中'} ${mb(data.loaded)} / ${mb(data.total)}`, { busy: true, progress: data.loaded / data.total });
+      } else if (data.type === 'phase') {
+        setStatus('モデルを展開中', { busy: true, progress: 1 });
       } else if (data.type === 'ready') {
-        state = 'ready'; P.loaded[P.model] = true; savePrefs();
+        state = 'ready'; delete P.loading; savePrefs();
+        navigator.storage?.persist?.().catch(() => {});
         setStatus('待機中'); render(); run();
       } else if (data.type === 'token' && pending) {
         pending.text = data.text; render();
@@ -762,7 +754,7 @@ dialog::backdrop { background: oklch(0% 0 0 / .4); backdrop-filter: blur(2px); }
       }
     };
     const fail = (msg) => {
-      pending = null; state = 'error';
+      pending = null; state = 'error'; delete P.loading; savePrefs();
       worker?.terminate(); worker = null;
       setStatus('エラー');
       body.innerHTML = `<div class="ai-empty">モデルを動かせませんでした（${esc(String(msg).slice(0, 160))}）。<br>メモリ不足の可能性があります。軽いモデルに切り替えるか、<button id="aiRetry">再試行</button></div>`;
@@ -776,22 +768,28 @@ dialog::backdrop { background: oklch(0% 0 0 / .4); backdrop-filter: blur(2px); }
         return;
       }
       worker?.terminate();
-      const url = URL.createObjectURL(new Blob([WORKER_SRC], { type: 'text/javascript' }));
-      worker = new Worker(url, { type: 'module' });
+      worker = new Worker('llm-worker.js', { type: 'module' });
       worker.onmessage = onMessage;
       worker.onerror = (e) => fail(e.message || 'Worker が停止しました');
-      state = 'loading'; setStatus('読み込み中', { busy: true, progress: 0 }); render();
+      // 読み込み中にページごと落ちた場合に次回検出できるよう印を付けておく
+      P.loading = P.model; savePrefs();
+      state = 'loading'; setStatus(cached ? 'キャッシュから読み込み中' : '読み込み中', { busy: true, progress: 0 }); render();
       worker.postMessage({ type: 'load', id: MODELS[P.model].id });
     }
 
-    const apply = () => {
+    let cached = false;
+    const apply = async () => {
       panel.classList.toggle('show', P.ai);
       $('#aiModelName').textContent = MODELS[P.model].label;
       if (!P.ai) { worker?.terminate(); worker = null; pending = null; state = 'off'; return; }
-      if (state === 'off' || state === 'error') {
-        if (P.loaded[P.model]) load();
-        else { state = 'idle'; setStatus('未読み込み'); render(); }
-      }
+      if (state !== 'off' && state !== 'error') return;
+      cached = await isCached(P.model);
+      if (P.loading) {
+        // 前回の読み込みが ready/error に到達しないままページが終了した＝メモリ不足で落ちた可能性が高い
+        delete P.loading; savePrefs();
+        state = 'crashed'; setStatus('要確認'); render();
+      } else if (cached) load();
+      else { state = 'idle'; setStatus('未読み込み'); render(); }
     };
     const switchModel = () => { worker?.terminate(); worker = null; pending = null; state = 'off'; apply(); };
     $('#aiNow').onclick = () => {
@@ -880,7 +878,10 @@ dialog::backdrop { background: oklch(0% 0 0 / .4); backdrop-filter: blur(2px); }
   const dlg = $('#dlg');
   const modelSelect = $('#modelSelect');
   modelSelect.innerHTML = Object.entries(MODELS).map(([k, m]) => `<option value="${k}">${m.label}</option>`).join('');
-  const updModelInfo = () => { $('#modelInfo').textContent = MODELS[P.model].size + (P.loaded[P.model] ? ' · ダウンロード済み' : ''); };
+  const updModelInfo = async () => {
+    $('#modelInfo').textContent = MODELS[P.model].size;
+    if (await isCached(P.model)) $('#modelInfo').textContent += ' · ダウンロード済み';
+  };
   $('#menuBtn').onclick = () => {
     $('#contextInput').value = S.context;
     $('#instrInput').value = S.instr ?? DEFAULT_INSTR;
@@ -900,7 +901,7 @@ dialog::backdrop { background: oklch(0% 0 0 / .4); backdrop-filter: blur(2px); }
   $('#clearModel').onclick = async () => {
     if (!confirm('ダウンロード済みのモデルを削除しますか？（次回使うときに再ダウンロードします）')) return;
     try { await caches.delete('transformers-cache'); } catch {}
-    P.loaded = {}; savePrefs(); updModelInfo(); AI.switchModel(); toast('モデルを削除しました');
+    updModelInfo(); AI.switchModel(); toast('モデルを削除しました');
   };
   $('#shareAll').onclick = async () => {
     const text = buildText(0, S.segs.length, 'all');
