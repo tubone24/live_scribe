@@ -184,11 +184,12 @@ dialog {
 dialog[open] { animation: sheetIn .25s ease-out; }
 @keyframes sheetIn { from { transform: translateY(24px); opacity: 0; } }
 dialog::backdrop { background: oklch(0% 0 0 / .4); backdrop-filter: blur(2px); }
-.sheet { padding: 16px 16px calc(env(safe-area-inset-bottom) + 16px); }
+.sheet { padding: 16px 16px calc(env(safe-area-inset-bottom) + 16px); max-height: 92dvh; overflow-y: auto; }
 .sheet-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
 .sheet-head h2 { margin: 0; font-size: 15px; font-weight: 600; }
 .label { font-size: 12px; color: var(--ink-2); margin: 4px 2px 6px; display: block; }
-#prefixInput {
+.label .link { float: right; color: var(--accent); font-size: 12px; }
+.sheet textarea {
   width: 100%; min-height: 84px; resize: vertical; padding: 10px 12px; border-radius: 12px; border: 0;
   background: var(--field); color: var(--ink); font: inherit; font-size: 16px; line-height: 1.6;
   box-shadow: inset 0 1px 2px oklch(0% 0 0 / .08); outline: 0;
@@ -262,28 +263,30 @@ dialog::backdrop { background: oklch(0% 0 0 / .4); backdrop-filter: blur(2px); }
 <dialog id="dlg">
   <div class="sheet">
     <div class="sheet-head">
-      <h2>設定</h2>
+      <h2 tabindex="-1" autofocus>設定</h2>
       <button class="icon-btn" id="closeDlg" aria-label="閉じる">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>
       </button>
     </div>
-    <label class="label" for="prefixInput">送信ファイルの先頭に付ける指示（任意・自動保存）</label>
-    <textarea id="prefixInput" placeholder="例：以下は商談の文字起こしの続きです。要点・課題・要件を追記して"></textarea>
+    <label class="label" for="contextInput">商談のコンテキスト（任意・誤変換の補正に使われます）</label>
+    <textarea id="contextInput" placeholder="例：〇〇社 情報システム部。テーマは経費精算のワークフロー化。固有名詞：SmartFlow、Entra ID"></textarea>
+    <label class="label" for="instrInput" style="margin-top:12px">Claude への指示（ファイル末尾に付きます）<button id="resetInstr" class="link">既定に戻す</button></label>
+    <textarea id="instrInput" style="min-height:140px"></textarea>
     <div class="menu">
-      <button id="shareAll">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 15V3M8 7l4-4 4 4"/><path d="M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-7"/></svg>
-        全文をファイルで共有
-      </button>
       <button id="downloadAll">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12M8 11l4 4 4-4"/><path d="M5 21h14"/></svg>
         全文をダウンロード
+      </button>
+      <button id="shareAll">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 15V3M8 7l4-4 4 4"/><path d="M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-7"/></svg>
+        全文を共有シートで送る
       </button>
       <button id="newSession" class="danger">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/></svg>
         新しい商談を始める（端末内のデータを削除）
       </button>
     </div>
-    <p class="hint">「送る」は前回以降の差分を .txt ファイルにして共有シートに渡します。Slack を選ぶとファイルとしてアップロードされます。共有シートが使えない場合は「ファイル」アプリにダウンロードします。<br>音声は保存しません。テキストはこの端末のブラウザ内にのみ保存されます。文字起こしはブラウザ標準の音声認識（iOS では Apple）を利用します。</p>
+    <p class="hint">「送る」は前回以降の差分を .txt ファイルとしてダウンロードします。「ファイル」アプリ &gt; ダウンロード からファイルを開き、共有で Slack に送ってください。<br>音声は保存しません。テキストはこの端末のブラウザ内にのみ保存されます。文字起こしはブラウザ標準の音声認識（iOS では Apple）を利用します。</p>
   </div>
 </dialog>
 
@@ -295,9 +298,28 @@ dialog::backdrop { background: oklch(0% 0 0 / .4); backdrop-filter: blur(2px); }
   const STAR_SVG = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M12 3.5l2.6 5.3 5.9.9-4.3 4.1 1 5.8L12 16.9l-5.2 2.7 1-5.8-4.3-4.1 5.9-.9z"/></svg>';
 
   // ---------- state ----------
-  const fresh = (keep = {}) => ({ segs: [], sentUpTo: 0, sendCount: 0, startedAt: null, prefix: keep.prefix || '' });
+  const DEFAULT_INSTR = [
+    '上の meeting_transcript は、顧客との商談中に録った文字起こしです。私はこの内容をもとに、その場でプロトタイプを作って顧客とすり合わせます。',
+    '',
+    '読み方の注意：',
+    '- transcript は音声認識の生テキストです。同音異義語や固有名詞の誤認識、句読点の欠落があります。context の固有名詞を手がかりに補正してください。',
+    '- 話者は区別されていません（顧客と私の発言が混在）。文脈から推測し、どちらの発言か曖昧で結論が変わる箇所は「要確認」としてください。',
+    '- notes は私が手入力したメモで確度が高い情報、important は私が重要マークを付けた発言です。優先して扱ってください。',
+    '- part 属性が 2 以上のときは続きです。それまでのパートの内容と統合してください。',
+    '',
+    '以下を日本語で整理・更新してください（書かれていないことは推測で埋めず「未確認」とする）：',
+    '1. 顧客の課題・背景',
+    '2. やりたいこと・要件（必須／あれば良い）',
+    '3. 制約（技術・セキュリティ・予算・期限・既存システム）',
+    '4. プロトタイプで作るべき画面・機能（優先度順）',
+    '5. 未確認事項と、次に顧客へ聞くべき質問',
+  ].join('\n');
+  const fresh = (keep = {}) => ({
+    segs: [], sentUpTo: 0, sendCount: 0, startedAt: null, context: keep.context || '', instr: keep.instr ?? null,
+  });
   let S;
   try { S = JSON.parse(localStorage.getItem(KEY)) || fresh(); } catch { S = fresh(); }
+  S.context ??= S.prefix || ''; S.instr ??= null; delete S.prefix;
   const save = () => { try { localStorage.setItem(KEY, JSON.stringify(S)); } catch {} };
 
   const pad = (n) => String(n).padStart(2, '0');
@@ -495,37 +517,50 @@ dialog::backdrop { background: oklch(0% 0 0 / .4); backdrop-filter: blur(2px); }
   });
 
   // ---------- export (ファイルとして共有 / ダウンロード) ----------
-  const buildText = (from, to, label) => {
+  // LLM 向けの出力：データを XML タグで区切り、指示は末尾に置く
+  const sessionId = () => {
+    const d = new Date(S.startedAt || Date.now());
+    return `${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}-${pad(d.getHours())}${pad(d.getMinutes())}`;
+  };
+  const xmlEsc = (s) => s.replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));
+  const buildText = (from, to, part) => {
     const segs = S.segs.slice(from, to);
     if (!segs.length) return '';
+    const speech = segs.filter((s) => s.kind !== 'note');
+    const notes = segs.filter((s) => s.kind === 'note');
+    const important = speech.filter((s) => s.star);
+
+    // 近い時刻の発言は1行にまとめて読みやすくする（★付きは単独行のまま）
     const lines = [];
     let cur = null;
-    const flush = () => {
-      if (cur) lines.push(`${cur.star ? '★' : ''}[${fmt(cur.ts)}] ${cur.text}`);
-      cur = null;
-    };
-    for (const seg of segs) {
-      if (seg.kind === 'note') { flush(); lines.push(`${seg.star ? '★' : ''}📝[${fmt(seg.ts)} 手入力メモ] ${seg.text}`); continue; }
-      // 近い時刻の発言はまとめて読みやすくする（★付きは単独行のまま）
-      if (cur && !cur.star && !seg.star && seg.ts - cur.last < 30000) {
-        cur.text += ' ' + seg.text; cur.last = seg.ts;
-      } else {
-        flush(); cur = { ...seg, last: seg.ts };
-      }
+    const flush = () => { if (cur) lines.push(`[${fmt(cur.ts)}]${cur.star ? ' ★' : ''} ${xmlEsc(cur.text)}`); cur = null; };
+    for (const seg of speech) {
+      if (cur && !cur.star && !seg.star && seg.ts - cur.last < 30000) { cur.text += ' ' + seg.text; cur.last = seg.ts; }
+      else { flush(); cur = { ...seg, last: seg.ts }; }
     }
     flush();
-    const head = [
-      S.prefix.trim(),
-      `【商談文字起こし ${label}】${fmt(segs[0].ts)}〜${fmt(segs[segs.length - 1].ts)}`,
-      '※音声認識の生テキスト（誤認識あり・話者の区別なし）。★=重要、📝=手入力メモ',
-    ].filter(Boolean);
-    return head.join('\n') + '\n\n' + lines.join('\n') + '\n';
+
+    const d = new Date(S.startedAt || segs[0].ts);
+    const attrs = [
+      `session="${sessionId()}"`,
+      `date="${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}"`,
+      `part="${part}"`,
+      `range="${fmt(segs[0].ts)}-${fmt(segs[segs.length - 1].ts)}"`,
+    ].join(' ');
+    const list = (items) => items.map((s) => `- [${fmt(s.ts)}] ${xmlEsc(s.text)}`).join('\n');
+    const instr = (S.instr ?? DEFAULT_INSTR).trim();
+    return [
+      `<meeting_transcript ${attrs}>`,
+      S.context.trim() && `<context>\n${xmlEsc(S.context.trim())}\n</context>`,
+      notes.length && `<notes description="私が手入力したメモ。確度が高い">\n${list(notes)}\n</notes>`,
+      important.length && `<important description="私が重要マークを付けた発言（音声認識）">\n${list(important)}\n</important>`,
+      speech.length && `<transcript description="音声認識の生テキスト。誤認識あり・話者の区別なし。★は重要マーク">\n${lines.join('\n')}\n</transcript>`,
+      '</meeting_transcript>',
+      instr && `<instructions>\n${instr}\n</instructions>`,
+    ].filter(Boolean).join('\n\n') + '\n';
   };
 
-  const fileName = (suffix) => {
-    const d = new Date(S.startedAt || Date.now());
-    return `live-scribe_${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}-${pad(d.getHours())}${pad(d.getMinutes())}_${suffix}.txt`;
-  };
+  const fileName = (suffix) => `live-scribe_${sessionId()}_${suffix}.txt`;
 
   const download = (file) => {
     const url = URL.createObjectURL(file);
@@ -546,36 +581,42 @@ dialog::backdrop { background: oklch(0% 0 0 / .4); backdrop-filter: blur(2px); }
     return 'downloaded';
   };
 
-  $('#sendBtn').onclick = async () => {
+  // 「送る」は共有シートを使わず直接ダウンロード（ファイルアプリ経由で Slack に共有する運用）
+  $('#sendBtn').onclick = () => {
     const to = S.segs.length, n = S.sendCount + 1;
-    const text = buildText(S.sentUpTo, to, `#${n}`);
+    const text = buildText(S.sentUpTo, to, n);
     if (!text) return toast('新しい内容はありません');
-    const r = await exportFile(text, fileName(`part${pad(n)}`));
-    if (!r) return;
+    download(new File([text], fileName(`part${pad(n)}`), { type: 'text/plain' }));
     S.sentUpTo = to; S.sendCount = n; save(); renderAll(); scrollBottom();
-    toast(r === 'shared' ? `#${n} を送信済みにしました` : `#${n} をダウンロードしました。ファイルアプリから Slack に添付してください`);
+    toast(`パート${n} を保存しました。ファイルアプリ > ダウンロード から共有してください`);
   };
 
   // ---------- settings ----------
   const dlg = $('#dlg');
-  $('#menuBtn').onclick = () => { $('#prefixInput').value = S.prefix; dlg.showModal(); };
+  $('#menuBtn').onclick = () => {
+    $('#contextInput').value = S.context;
+    $('#instrInput').value = S.instr ?? DEFAULT_INSTR;
+    dlg.showModal();
+  };
   $('#closeDlg').onclick = () => dlg.close();
   dlg.addEventListener('click', (e) => { if (e.target === dlg) dlg.close(); });
-  $('#prefixInput').addEventListener('input', (e) => { S.prefix = e.target.value; save(); });
+  $('#contextInput').addEventListener('input', (e) => { S.context = e.target.value; save(); });
+  $('#instrInput').addEventListener('input', (e) => { S.instr = e.target.value === DEFAULT_INSTR ? null : e.target.value; save(); });
+  $('#resetInstr').onclick = (e) => { e.preventDefault(); S.instr = null; save(); $('#instrInput').value = DEFAULT_INSTR; toast('指示を既定に戻しました'); };
   $('#shareAll').onclick = async () => {
-    const text = buildText(0, S.segs.length, '全文');
+    const text = buildText(0, S.segs.length, 'all');
     if (!text) return toast('内容がありません');
     await exportFile(text, fileName('full'));
   };
   $('#downloadAll').onclick = () => {
-    const text = buildText(0, S.segs.length, '全文');
+    const text = buildText(0, S.segs.length, 'all');
     if (!text) return toast('内容がありません');
     download(new File([text], fileName('full'), { type: 'text/plain' }));
   };
   $('#newSession').onclick = () => {
     if (!confirm('現在の文字起こしを端末から削除して、新しい商談を始めますか？')) return;
     if (running) stop();
-    S = fresh({ prefix: S.prefix });
+    S = fresh({ instr: S.instr });
     save(); renderAll(); setInterim('');
     $('#recLabel').textContent = '録音開始'; tick();
     dlg.close(); toast('新しい商談を開始できます');
