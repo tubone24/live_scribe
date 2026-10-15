@@ -108,7 +108,12 @@ header {
 
 /* ---------- transcript ---------- */
 main { flex: 1; min-height: 0; overflow-y: auto; padding: 8px 16px 0; -webkit-overflow-scrolling: touch; }
-.session-title { font-size: 12px; color: var(--ink-3); padding: 4px 0 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.session-title { display: flex; align-items: center; gap: 6px; padding: 4px 0 2px; min-height: 30px; }
+#titleBtn { display: inline-flex; align-items: center; gap: 6px; min-width: 0; max-width: 100%; font-size: 13px; font-weight: 600; color: var(--ink-2); text-align: left; }
+#titleBtn span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#titleBtn svg { color: var(--ink-3); }
+#titleEdit { flex: 1; min-width: 0; height: 32px; padding: 0 10px; border: 0; border-radius: 8px; background: var(--field); color: var(--ink); font: inherit; font-size: 16px; font-weight: 600; outline: 0; box-shadow: 0 0 0 2px var(--accent-tint); }
+#drList .s mark { background: var(--hl-req); color: inherit; border-radius: 2px; padding: 0 1px; }
 #banner {
   display: none; margin: 8px 0; padding: 10px 12px; border-radius: 10px;
   background: var(--orange-tint); color: var(--orange); font-size: 13px; line-height: 1.6;
@@ -386,7 +391,12 @@ dialog::backdrop { background: oklch(0% 0 0 / .4); backdrop-filter: blur(2px); }
 </div>
 
 <main id="log">
-  <div class="session-title" id="sessionTitle"></div>
+  <div class="session-title">
+    <button id="titleBtn" aria-label="商談名を編集"><span id="sessionTitle"></span><span class="tag2" id="titleAiTag" hidden>AI</span>
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/></svg>
+    </button>
+    <input id="titleEdit" type="text" enterkeyhint="done" autocomplete="off" hidden>
+  </div>
   <div id="banner"></div>
   <div id="standaloneNote">ホーム画面のアプリとして開いています。この画面では音声認識が動かないことがあり、保存した商談も Safari とは別になります。<a id="openSafari" href="#">Safari で開く</a>（ホーム画面に追加し直すときは「Webアプリとして開く」をオフにしてください）</div>
   <div class="empty" id="empty">
@@ -463,7 +473,7 @@ dialog::backdrop { background: oklch(0% 0 0 / .4); backdrop-filter: blur(2px); }
       <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="6.5"/><path d="M20 20l-4-4"/></svg>
     </button>
   </div>
-  <input id="drSearch" type="search" placeholder="商談名・内容で検索" autocomplete="off">
+  <input id="drSearch" type="search" placeholder="商談名・発言・メモで検索（スペースで AND）" autocomplete="off">
   <div class="dr-list-wrap"><div class="glide" id="glide"></div><ul id="drList"></ul></div>
   <div class="dr-foot" id="drFoot"></div>
 </aside>
@@ -476,7 +486,7 @@ dialog::backdrop { background: oklch(0% 0 0 / .4); backdrop-filter: blur(2px); }
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>
       </button>
     </div>
-    <label class="label" for="titleInput">商談名（この商談のみ）</label>
+    <label class="label" for="titleInput">商談名（この商談のみ・画面上部の商談名をタップしても編集できます）</label>
     <input type="text" id="titleInput" placeholder="例：テスト商事 申請ワークフロー" autocomplete="off">
     <label class="label" for="contextInput">商談のコンテキスト（この商談のみ・誤変換の補正に使われます）</label>
     <textarea id="contextInput" placeholder="例：〇〇社 情報システム部。テーマは経費精算のワークフロー化。固有名詞：SmartFlow、Entra ID"></textarea>
@@ -513,6 +523,10 @@ dialog::backdrop { background: oklch(0% 0 0 / .4); backdrop-filter: blur(2px); }
 
     <div class="section-title">データ</div>
     <div class="menu">
+      <label class="row">
+        <span class="grow">いつも zip で書き出す<small>テキスト（メモ・文字起こし）と写真（images/）を常に1つの zip にまとめます。オフにすると写真がない回は .txt になります。</small></span>
+        <span class="switch"><input type="checkbox" id="zipToggle"><span></span></span>
+      </label>
       <button id="downloadAll">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12M8 11l4 4 4-4"/><path d="M5 21h14"/></svg>
         この商談の全文をダウンロード
@@ -522,7 +536,7 @@ dialog::backdrop { background: oklch(0% 0 0 / .4); backdrop-filter: blur(2px); }
         この商談の全文を共有シートで送る
       </button>
     </div>
-    <p class="hint">「送る」は前回以降の差分をダウンロードします（写真を含む場合は .zip、含まない場合は .txt）。「ファイル」アプリ &gt; ダウンロード から開き、共有で Slack に送ってください。商談の切り替え・削除は左上のボタンから行えます。<br>音声は保存しません。テキストと写真はこの端末のブラウザ内にのみ保存されます。文字起こしはブラウザ標準の音声認識（iOS では Apple）を利用します。AI メモのモデルは初回のみ Hugging Face からダウンロードし、ブラウザ内にキャッシュします。</p>
+    <p class="hint">「送る」は前回以降の差分を zip（テキスト＋写真）でダウンロードします。「ファイル」アプリ &gt; ダウンロード から開き、共有で Slack に送ってください。商談の切り替え・削除は左上のボタンから行えます。<br>音声は保存しません。テキストと写真はこの端末のブラウザ内にのみ保存されます。文字起こしはブラウザ標準の音声認識（iOS では Apple）を利用します。AI メモのモデルは初回のみ Hugging Face からダウンロードし、ブラウザ内にキャッシュします。</p>
   </div>
 </dialog>
 
@@ -627,7 +641,7 @@ dialog::backdrop { background: oklch(0% 0 0 / .4); backdrop-filter: blur(2px); }
     topics: [], topicUpTo: 0,
   });
   const normalize = (s) => {
-    s.context ??= s.prefix || ''; s.instr ??= null; s.title ??= '';
+    s.context ??= s.prefix || ''; s.instr ??= null; s.title ??= ''; s.titleAuto ??= false;
     s.topics ??= []; s.topicUpTo ??= 0;
     for (const k of ['prefix', 'questions', 'sums', 'sumUpTo', 'items', 'itemsUpTo']) delete s[k];
     return s;
@@ -638,7 +652,7 @@ dialog::backdrop { background: oklch(0% 0 0 / .4); backdrop-filter: blur(2px); }
   const PKEY = 'livescribe.prefs';
   let P;
   try { P = JSON.parse(localStorage.getItem(PKEY)) || {}; } catch { P = {}; }
-  P.hl ??= true; P.ai ??= false; P.model ??= 'lfm2-350m'; P.meter ??= true;
+  P.hl ??= true; P.ai ??= false; P.model ??= 'lfm2-350m'; P.meter ??= true; P.zip ??= true;
   if (P.v !== 2) { P.model = 'lfm2-350m'; P.v = 2; delete P.loaded; }
   const savePrefs = () => { try { localStorage.setItem(PKEY, JSON.stringify(P)); } catch {} };
 
@@ -732,7 +746,7 @@ dialog::backdrop { background: oklch(0% 0 0 / .4); backdrop-filter: blur(2px); }
     hydrate(segsEl);
     $('#empty').style.display = S.segs.length ? 'none' : '';
     $('#legend').classList.toggle('off', !P.hl);
-    $('#sessionTitle').textContent = titleOf(S);
+    renderTitle();
     updSend();
     if (keep) scrollBottom();
   };
@@ -997,6 +1011,8 @@ dialog::backdrop { background: oklch(0% 0 0 / .4); backdrop-filter: blur(2px); }
     $('#recLabel').textContent = S.segs.length ? '録音再開' : '録音開始'; $('#recBtn').classList.remove('running');
     lockOff(); clearInterval(timer); tick(); flush();
     renderDrawer();
+    // AI メモがオンなら、録音を止めたタイミングで商談名を自動で付ける（手で付けた名前は上書きしない）
+    if (P.ai && (!S.title || S.titleAuto)) AI.requestTitle(S);
   }
   $('#recBtn').onclick = () => (running ? stop() : start());
 
@@ -1030,7 +1046,8 @@ dialog::backdrop { background: oklch(0% 0 0 / .4); backdrop-filter: blur(2px); }
   const cleanLine = (l) => l.trim().replace(/^(#+\s*|[-・*•]\s*|\d+[.)．]\s*)/, '').replace(/\*\*/g, '').replace(/[【】\[\]「」"]/g, '').trim();
   const toTitle = (out) => {
     const t = cleanLine(out.split('\n').find((l) => l.trim()) || '').split(/[、。,，:：（(]/)[0]
-      .replace(/(に関する|についての|について)(議論|質問|話し?合い|話|会話|説明|相談|確認).*$/, '').replace(/^今日の/, '').trim();
+      .replace(/(に関する|についての|について)(議論|質問|話し?合い|話|会話|説明|相談|確認).*$/, '').replace(/^今日の/, '')
+      .replace(/(し|して|て|で|が|を|は|に|と|の)$/, '').trim(); // 「〜に転記し」のような途切れた語尾を落とす
     return t.length > 18 ? t.slice(0, 18) + '…' : t;
   };
   // 区間の代表的な発言：★ > メモ > 蛍光ペン対象 > 長い発言 の順に最大2つ（時系列順で表示）
@@ -1040,9 +1057,12 @@ dialog::backdrop { background: oklch(0% 0 0 / .4); backdrop-filter: blur(2px); }
       .map((x) => ({ i: x.i, sc: score(x.s) })).sort((a, b) => b.sc - a.sc).slice(0, 2).map((x) => x.i).sort((a, b) => a - b);
   };
   const clip = (t, n = 46) => (t.length > n ? t.slice(0, n) + '…' : t);
+  // 商談名：話題の一覧を渡すと並べ直すだけになるので、会話の冒頭から「何の相談か」だけを答えさせる
+  const SESSION_TITLE_SYS = 'What system or business problem is this Japanese sales meeting about? Answer with a very short Japanese noun phrase (max 12 characters), like 経費精算のワークフロー化. Output only the phrase.';
+  const toSessionTitle = (out) => toTitle(out).replace(/…$/, '');
 
   const AI = (() => {
-    let worker = null, state = 'off', job = null, cached = false, jobStart = 0;
+    let worker = null, state = 'off', job = null, cached = false, jobStart = 0, pendingTitle = null;
     const panel = $('#aiPanel'), body = $('#aiBody'), nextEl = $('#aiNext');
     // 実際の会話は1分で約300文字。約2分ごとに1話題になるように区切る
     const MIN_CHARS = 600, IDLE_MS = 180000, MIN_IDLE_CHARS = 80, MAX_TITLE_INPUT = 900;
@@ -1064,7 +1084,7 @@ dialog::backdrop { background: oklch(0% 0 0 / .4); backdrop-filter: blur(2px); }
     const updNext = () => {
       if (!P.ai || !['ready', 'busy'].includes(state)) { nextEl.innerHTML = ''; return; }
       if (job && job.sess === S) {
-        nextEl.innerHTML = ring(0.28, true) + `<span class="lbl shimmer">見出しを作成中</span><span class="meta mono">${((performance.now() - jobStart) / 1000).toFixed(1)}s</span>`;
+        nextEl.innerHTML = ring(0.28, true) + `<span class="lbl shimmer">${job.kind === 'title' ? '商談名を作成中' : '見出しを作成中'}</span><span class="meta mono">${((performance.now() - jobStart) / 1000).toFixed(1)}s</span>`;
         return;
       }
       const segs = S.segs.slice(S.topicUpTo);
@@ -1116,8 +1136,32 @@ dialog::backdrop { background: oklch(0% 0 0 / .4); backdrop-filter: blur(2px); }
       worker.postMessage({ type: 'run', messages, maxTokens });
     });
 
+    const tryTitle = async () => {
+      const sess = pendingTitle;
+      if (!sess || state !== 'ready' || job) return false;
+      pendingTitle = null;
+      const text = [sess.context?.trim() && `前提：${sess.context.trim()}`, speechText(sess.segs).slice(0, 900)].filter(Boolean).join('\n');
+      if (text.length < 60) return false;
+      job = { sess, ts0: Date.now(), kind: 'title' }; state = 'busy'; jobStart = performance.now();
+      setStatus('商談名を作成中', { busy: true });
+      try {
+        const title = toSessionTitle(await ask([{ role: 'system', content: SESSION_TITLE_SYS }, { role: 'user', content: text }], 20));
+        if (title && (!sess.title || sess.titleAuto)) {
+          sess.title = title; sess.titleAuto = true;
+          if (sess === S) { save(); renderTitle(); } else DB.put('sessions', sess).catch(() => {});
+          renderDrawer(); toast(`商談名を付けました：${title}`);
+        }
+        job = null; state = 'ready'; setStatus('待機中'); render();
+        setTimeout(() => run(), 0);
+      } catch (e) {
+        if (job) fail(e.message || String(e));
+      }
+      return true;
+    };
+
     const run = async (force = false) => {
       if (state !== 'ready' || job) return;
+      if (pendingTitle && await tryTitle()) return;
       // 処理中に商談が切り替わっても、結果は元の商談に書き込む
       const sess = S;
       const pendingSegs = sess.segs.slice(sess.topicUpTo);
@@ -1201,7 +1245,8 @@ dialog::backdrop { background: oklch(0% 0 0 / .4); backdrop-filter: blur(2px); }
       else { state = 'idle'; setStatus('未読み込み'); render(); }
     };
     const switchModel = () => { worker?.terminate(); worker = null; job = null; state = 'off'; apply(); };
-    return { apply, switchModel, render, maybeRun: () => { if (P.ai) run(); } };
+    const requestTitle = (sess) => { pendingTitle = sess; run(); };
+    return { apply, switchModel, render, maybeRun: () => { if (P.ai) run(); }, requestTitle };
   })();
 
   // ---------- export（ファイルとして共有 / ダウンロード） ----------
@@ -1291,7 +1336,7 @@ dialog::backdrop { background: oklch(0% 0 0 / .4); backdrop-filter: blur(2px); }
     const b = buildText(from, to, part);
     if (!b) return null;
     const base = `live-scribe_${sessionStamp()}_${suffix}`;
-    if (!b.images.length) return new File([b.text], `${base}.txt`, { type: 'text/plain' });
+    if (!b.images.length && !P.zip) return new File([b.text], `${base}.txt`, { type: 'text/plain' });
     const files = [{ name: `${base}.txt`, data: new TextEncoder().encode(b.text) }];
     for (const im of b.images) {
       const rec = await DB.get('images', im.id);
@@ -1315,7 +1360,7 @@ dialog::backdrop { background: oklch(0% 0 0 / .4); backdrop-filter: blur(2px); }
     if (!file) return toast('新しい内容はありません');
     download(file);
     S.sentUpTo = to; S.sendCount = n; flush(); renderAll(); scrollBottom();
-    toast(`パート${n}（${file.name.endsWith('.zip') ? '写真つき zip' : 'テキスト'}）を保存しました。ファイルアプリ > ダウンロード から共有してください`);
+    toast(`パート${n}（${file.name.endsWith('.zip') ? 'zip' : 'テキスト'}）を保存しました。ファイルアプリ > ダウンロード から共有してください`);
   };
 
   // ---------- 全文ビュー（Apple Intelligence の作文ツール／リーダー要約用） ----------
@@ -1373,18 +1418,40 @@ dialog::backdrop { background: oklch(0% 0 0 / .4); backdrop-filter: blur(2px); }
     const first = s.segs.find((x) => x.text);
     return first ? first.text : 'まだ発言がありません';
   };
+  // 全文検索：商談名・コンテキスト・話題の見出し・発言・メモ・写真の説明が対象。
+  // 全角/半角・大文字/小文字・カタカナ/ひらがなの違いをそろえ、スペース区切りは AND 検索
+  const norm = (t) => String(t || '').normalize('NFKC').toLowerCase()
+    .replace(/[\u30a1-\u30f6]/g, (c) => String.fromCharCode(c.charCodeAt(0) - 0x60)).replace(/\s+/g, ' ').trim();
+  const searchText = (s) => norm([titleOf(s), s.context, ...(s.topics || []).map((t) => t.title), ...s.segs.map((x) => x.text)].join(' \n '));
+  // 一覧に、最初の語が見つかった箇所の前後を出す（ヒット箇所にマーカー）
+  const snippet = (s, term) => {
+    const fields = [titleOf(s), s.context, ...(s.topics || []).map((t) => t.title), ...s.segs.map((x) => x.text)];
+    for (const f of fields) {
+      const n = norm(f), at = n.indexOf(term);
+      if (at < 0 || n.length !== String(f).length) { if (at >= 0) return esc(clip(f, 40)); continue; }
+      const from = Math.max(0, at - 14), to = Math.min(f.length, at + term.length + 22);
+      return (from ? '…' : '') + esc(f.slice(from, at)) + `<mark>${esc(f.slice(at, at + term.length))}</mark>` + esc(f.slice(at + term.length, to)) + (to < f.length ? '…' : '');
+    }
+    return esc(clip(subtitleOf(s), 40));
+  };
   async function renderDrawer(reload = true) {
     if (reload) sessions = (await DB.all('sessions').catch(() => [])).map(normalize);
     // 開いている商談はメモリ上の最新状態を使う
     sessions = sessions.filter((s) => s.id !== S.id).concat([S]).sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
-    const q = $('#drSearch').value.trim();
-    const list = q ? sessions.filter((s) => (titleOf(s) + s.context + s.segs.map((x) => x.text).join(' ')).includes(q)) : sessions;
+    const terms = norm($('#drSearch').value).split(' ').filter(Boolean);
+    const hits = new Map();
+    const list = terms.length ? sessions.filter((s) => {
+      const hay = searchText(s);
+      if (!terms.every((t) => hay.includes(t))) return false;
+      hits.set(s.id, snippet(s, terms[0]));
+      return true;
+    }) : sessions;
     drList.innerHTML = list.length ? list.map((s) => {
       const photos = s.segs.filter((x) => x.kind === 'image').length;
       const live = s.id === S.id && running;
       return `<li data-id="${s.id}" class="${s.id === S.id ? 'active' : ''}">` +
         `<span class="t">${live ? '<span class="live-dot"></span>' : ''}${esc(titleOf(s))}</span>` +
-        `<span class="s">${esc(clip(subtitleOf(s), 40))}</span>` +
+        `<span class="s">${hits.get(s.id) ?? esc(clip(subtitleOf(s), 40))}</span>` +
         `<span class="m mono">${esc(fmtDate(s.updatedAt || s.createdAt))} · ${s.segs.length}件${photos ? ` · 写真${photos}` : ''}</span>` +
         `<button class="del" data-del="${s.id}" aria-label="この商談を削除">${TRASH_SVG}</button></li>`;
     }).join('') : '<li class="none">見つかりませんでした</li>';
@@ -1446,6 +1513,29 @@ dialog::backdrop { background: oklch(0% 0 0 / .4); backdrop-filter: blur(2px); }
     await renderDrawer(); toast('商談を削除しました');
   }
 
+  // ---------- 商談名（タップして手で編集。手で付けた名前は AI が上書きしない） ----------
+  function renderTitle() {
+    $('#sessionTitle').textContent = titleOf(S);
+    $('#titleAiTag').hidden = !(S.title && S.titleAuto);
+  }
+  const titleEdit = $('#titleEdit');
+  $('#titleBtn').onclick = () => {
+    $('#titleBtn').hidden = true; titleEdit.hidden = false;
+    titleEdit.value = S.title; titleEdit.placeholder = titleOf({ ...S, title: '' });
+    titleEdit.focus(); titleEdit.select();
+  };
+  const commitTitle = () => {
+    if (titleEdit.hidden) return;
+    const v = titleEdit.value.trim();
+    if (v !== S.title) { S.title = v; S.titleAuto = false; save(); renderDrawer(); }
+    titleEdit.hidden = true; $('#titleBtn').hidden = false; renderTitle();
+  };
+  titleEdit.addEventListener('blur', commitTitle);
+  titleEdit.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && !e.isComposing) titleEdit.blur();
+    if (e.key === 'Escape') { titleEdit.value = S.title; titleEdit.blur(); }
+  });
+
   // ---------- settings ----------
   const dlg = $('#dlg');
   const modelSelect = $('#modelSelect');
@@ -1461,13 +1551,15 @@ dialog::backdrop { background: oklch(0% 0 0 / .4); backdrop-filter: blur(2px); }
     $('#instrInput').value = S.instr ?? DEFAULT_INSTR;
     $('#hlToggle').checked = P.hl;
     $('#meterToggle').checked = P.meter;
+    $('#zipToggle').checked = P.zip;
     $('#aiToggle').checked = P.ai;
     modelSelect.value = P.model; updModelInfo();
     dlg.showModal();
   };
   $('#closeDlg').onclick = () => dlg.close();
   dlg.addEventListener('click', (e) => { if (e.target === dlg) dlg.close(); });
-  $('#titleInput').addEventListener('input', (e) => { S.title = e.target.value; save(); $('#sessionTitle').textContent = titleOf(S); });
+  $('#titleInput').addEventListener('input', (e) => { S.title = e.target.value; S.titleAuto = false; save(); renderTitle(); });
+  $('#zipToggle').onchange = (e) => { P.zip = e.target.checked; savePrefs(); };
   $('#contextInput').addEventListener('input', (e) => { S.context = e.target.value; save(); });
   $('#instrInput').addEventListener('input', (e) => { S.instr = e.target.value === DEFAULT_INSTR ? null : e.target.value; save(); });
   $('#resetInstr').onclick = (e) => { e.preventDefault(); S.instr = null; save(); $('#instrInput').value = DEFAULT_INSTR; toast('指示を既定に戻しました'); };
