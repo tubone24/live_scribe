@@ -1,0 +1,15 @@
+{
+  "name": "Live Scribe",
+  "short_name": "Live Scribe",
+  "description": "商談のリアルタイム文字起こし（端末内のみに保存）",
+  "start_url": "./",
+  "scope": "./",
+  "display": "browser",
+  "lang": "ja",
+  "background_color": "#1f2023",
+  "theme_color": "#1f2023",
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png" }
+  ]
+}

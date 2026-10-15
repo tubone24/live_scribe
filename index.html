@@ -6,6 +6,12 @@
 <meta name="theme-color" content="#fafafa" media="(prefers-color-scheme: light)">
 <meta name="theme-color" content="#1f2023" media="(prefers-color-scheme: dark)">
 <title>Live Scribe</title>
+<!-- ホーム画面に追加できるようにする。display: browser にして、アイコンから開いたときも Safari で開く
+     （独立したアプリ画面では音声認識が動かないことがあり、保存データも Safari と別になるため） -->
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<link rel="icon" type="image/png" href="icons/icon-192.png">
+<meta name="apple-mobile-web-app-title" content="Live Scribe">
 <style>
 :root {
   --page: oklch(98.5% .001 286); --surface: oklch(100% 0 0); --inset: oklch(97.9% .002 248);
@@ -58,8 +64,8 @@ svg { display: block; flex: none; }
 
 /* ---------- header ---------- */
 header {
-  display: flex; align-items: center; gap: 10px;
-  padding: calc(env(safe-area-inset-top) + 12px) 16px 12px;
+  display: flex; align-items: center; gap: 8px;
+  padding: calc(env(safe-area-inset-top) + 10px) 10px 10px 8px;
   border-bottom: 1px dashed var(--line-strong);
 }
 .pix { display: grid; grid-template-columns: repeat(3, 3px); gap: 1.5px; color: var(--ink-3); }
@@ -67,7 +73,8 @@ header {
 .live .pix { color: var(--red); }
 .live .pix i, .pix.busy i { animation: pix 1.1s infinite; animation-delay: calc(var(--d) * 85ms); }
 @keyframes pix { 0%, 100% { opacity: .2; } 35% { opacity: 1; } }
-#stateLabel { font-weight: 500; color: var(--ink-2); }
+.hd-state { display: flex; align-items: center; gap: 8px; min-width: 0; }
+#stateLabel { font-weight: 500; color: var(--ink-2); white-space: nowrap; }
 #elapsed { font-size: 12px; color: var(--ink-3); }
 .shimmer {
   background: linear-gradient(90deg, var(--ink-3) 0 35%, var(--ink) 50%, var(--ink-3) 65% 100%);
@@ -76,34 +83,41 @@ header {
 }
 @keyframes shim { from { background-position: 100% 0; } to { background-position: -150% 0; } }
 .chip {
-  display: inline-flex; align-items: center; gap: 5px; height: 24px; padding: 0 9px; border-radius: 999px;
-  font-size: 12px; font-weight: 500; white-space: nowrap;
+  display: inline-flex; align-items: center; gap: 5px; height: 22px; padding: 0 8px; border-radius: 999px;
+  font-size: 11px; font-weight: 500; white-space: nowrap;
 }
-#wl { margin-left: auto; }
+.hd-right { margin-left: auto; display: flex; align-items: center; gap: 2px; }
 #wl.ok { background: var(--green-tint); color: var(--green); }
 #wl.ng { background: var(--orange-tint); color: var(--orange); }
 #wl:empty { display: none; }
 .icon-btn {
-  width: 32px; height: 32px; border-radius: 9px; display: grid; place-items: center; color: var(--ink-2);
+  width: 34px; height: 34px; border-radius: 9px; display: grid; place-items: center; color: var(--ink-2); flex: none;
 }
 .icon-btn:active { background: var(--hover); }
-#menuBtn { margin-left: auto; }
-#wl:not(:empty) + #menuBtn { margin-left: 0; }
+/* マイクの音量メーター */
+.meter { display: none; align-items: flex-end; gap: 2px; height: 14px; }
+.meter.on { display: inline-flex; }
+.meter i { width: 3px; border-radius: 1px; background: var(--line-strong); height: 3px; transition: height .08s, background .2s; }
+.meter i.lit { background: var(--green); }
 
 /* ---------- highlighter legend ---------- */
-#legend { display: flex; gap: 12px; padding: 7px 16px; font-size: 11px; color: var(--ink-2); border-bottom: 1px dashed var(--line-strong); }
+#legend { display: flex; gap: 12px; padding: 7px 16px; font-size: 11px; color: var(--ink-2); border-bottom: 1px dashed var(--line-strong); overflow-x: auto; white-space: nowrap; }
 #legend.off { display: none; }
 #legend span { display: inline-flex; align-items: center; gap: 5px; }
 #legend i { width: 14px; height: 8px; border-radius: 2px; }
 
 /* ---------- transcript ---------- */
 main { flex: 1; min-height: 0; overflow-y: auto; padding: 8px 16px 0; -webkit-overflow-scrolling: touch; }
+.session-title { font-size: 12px; color: var(--ink-3); padding: 4px 0 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 #banner {
   display: none; margin: 8px 0; padding: 10px 12px; border-radius: 10px;
   background: var(--orange-tint); color: var(--orange); font-size: 13px; line-height: 1.6;
 }
 #banner.show { display: block; }
-.empty { margin-top: 22vh; display: flex; flex-direction: column; align-items: center; gap: 14px; color: var(--ink-3); text-align: center; line-height: 1.7; }
+#standaloneNote { display: none; margin: 8px 0; padding: 10px 12px; border-radius: 10px; background: var(--accent-tint); color: var(--ink); font-size: 13px; line-height: 1.6; }
+#standaloneNote.show { display: block; }
+#standaloneNote a { color: var(--accent); font-weight: 600; }
+.empty { margin-top: 20vh; display: flex; flex-direction: column; align-items: center; gap: 14px; color: var(--ink-3); text-align: center; line-height: 1.7; }
 .empty .pix { grid-template-columns: repeat(3, 5px); gap: 2.5px; }
 .empty .pix i { width: 5px; height: 5px; border-radius: 1px; }
 .empty b { color: var(--ink-2); font-weight: 500; }
@@ -125,6 +139,8 @@ main { flex: 1; min-height: 0; overflow-y: auto; padding: 8px 16px 0; -webkit-ov
   vertical-align: 2px;
 }
 .seg.note .txt { color: var(--ink); font-weight: 500; }
+.thumb { display: block; width: min(240px, 100%); aspect-ratio: 4 / 3; object-fit: cover; border-radius: 10px; background: var(--field); box-shadow: 0 0 0 1px var(--line); cursor: zoom-in; }
+.seg.image .cap { display: block; font-size: 14px; color: var(--ink-2); margin-top: 4px; }
 mark { color: inherit; background: none; padding: 0 1px; border-radius: 2px; -webkit-box-decoration-break: clone; box-decoration-break: clone; }
 mark.req   { background: linear-gradient(transparent 50%, var(--hl-req) 50%); }
 mark.issue { background: linear-gradient(transparent 50%, var(--hl-issue) 50%); }
@@ -150,7 +166,7 @@ mark.num   { background: linear-gradient(transparent 50%, var(--hl-num) 50%); fo
 #toBottom.show { display: inline-flex; }
 .spacer { height: 16px; }
 
-/* ---------- AI summary panel ---------- */
+/* ---------- AI panel ---------- */
 #aiPanel {
   display: none; flex: none; margin: 0 12px 8px; max-height: 38dvh; min-height: 96px;
   flex-direction: column; background: var(--surface); border-radius: 16px; box-shadow: var(--shadow-card); overflow: hidden;
@@ -176,7 +192,6 @@ mark.num   { background: linear-gradient(transparent 50%, var(--hl-num) 50%); fo
 .next .lbl { font-size: 13px; font-weight: 500; white-space: nowrap; }
 .next .meta { margin-left: auto; font-size: 11.5px; color: var(--ink-3); white-space: nowrap; }
 .ai-sec { padding: 8px 0 4px; }
-.ai-sec + .ai-sec { border-top: 1px dashed var(--line-strong); }
 .sec-h { display: flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600; color: var(--ink-2); margin-bottom: 4px; }
 .tag2 { font-size: 10px; font-weight: 600; padding: 1px 6px; border-radius: 5px; background: var(--accent-tint); color: var(--accent); }
 .ai-sec ul { margin: 0; padding: 0; list-style: none; }
@@ -184,8 +199,7 @@ mark.num   { background: linear-gradient(transparent 50%, var(--hl-num) 50%); fo
 .topics li .t b { font-weight: 600; }
 .topics .quote { display: block; font-size: 12.5px; color: var(--ink-2); line-height: 1.55; margin-top: 2px; }
 .topics li .time { font-size: 11px; color: var(--ink-3); padding-top: 3px; }
-.topics li.busy .t { background: linear-gradient(90deg, var(--ink-3) 0 35%, var(--ink) 50%, var(--ink-3) 65% 100%); background-size: 250% 100%; -webkit-background-clip: text; background-clip: text; color: transparent; animation: shim 2.2s linear infinite; }
-.topics li.empty-row, .ai-sec .none { font-size: 12px; color: var(--ink-3); cursor: default; }
+.topics li.empty-row { font-size: 12px; color: var(--ink-3); cursor: default; }
 .seg.flash { animation: flash 1.4s ease-out; }
 @keyframes flash { 0%, 40% { background: var(--accent-tint); } }
 
@@ -207,13 +221,15 @@ footer { padding: 0 12px calc(env(safe-area-inset-bottom) + 10px); }
 .pill {
   display: inline-flex; align-items: center; justify-content: center; gap: 7px; height: 40px; padding: 0 14px;
   border-radius: 999px; font-size: 14px; font-weight: 500; box-shadow: var(--shadow-btn); background: var(--surface);
-  transition: transform .1s, background .15s;
+  transition: transform .1s, background .15s; white-space: nowrap;
 }
 .pill:active { transform: scale(.97); }
 #recBtn .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--red); }
 #recBtn.running { background: var(--red-tint); color: var(--red); box-shadow: 0 0 0 1px color-mix(in oklch, var(--red) 35%, transparent); }
 #recBtn.running .dot { border-radius: 2px; }
-#starBtn { width: 40px; padding: 0; color: var(--orange); }
+.pill.sq { width: 40px; padding: 0; }
+#starBtn { color: var(--orange); }
+#camBtn { color: var(--ink-2); }
 #sendBtn { margin-left: auto; background: var(--accent); color: #fff; box-shadow: none; padding: 0 8px 0 14px; }
 #sendBtn .count {
   min-width: 22px; height: 22px; padding: 0 6px; border-radius: 999px; display: grid; place-items: center;
@@ -224,14 +240,47 @@ footer { padding: 0 12px calc(env(safe-area-inset-bottom) + 10px); }
 
 /* ---------- toast ---------- */
 #toast {
-  position: fixed; left: 50%; top: calc(env(safe-area-inset-top) + 62px); transform: translate(-50%, -6px);
+  position: fixed; left: 50%; top: calc(env(safe-area-inset-top) + 62px); transform: translate(-50%, -6px); z-index: 50;
   display: flex; align-items: center; gap: 8px; max-width: calc(100% - 32px);
   background: var(--tip-bg); color: var(--tip-fg); padding: 9px 14px; border-radius: 12px; font-size: 13px;
   box-shadow: var(--shadow-overlay); opacity: 0; pointer-events: none; transition: opacity .2s, transform .2s;
 }
 #toast.show { opacity: 1; transform: translate(-50%, 0); }
 
-/* ---------- settings sheet ---------- */
+/* ---------- drawer（Sidebar Nav 風） ---------- */
+#scrim { position: fixed; inset: 0; background: oklch(0% 0 0 / .32); opacity: 0; pointer-events: none; transition: opacity .25s; z-index: 30; }
+#scrim.show { opacity: 1; pointer-events: auto; }
+#drawer {
+  position: fixed; inset: 0 auto 0 0; width: min(320px, 86vw); z-index: 31; display: flex; flex-direction: column;
+  background: var(--surface); box-shadow: var(--shadow-overlay); transform: translateX(-104%); transition: transform .28s cubic-bezier(.2, .8, .2, 1);
+  padding: calc(env(safe-area-inset-top) + 10px) 10px calc(env(safe-area-inset-bottom) + 10px);
+}
+#drawer.show { transform: none; }
+.dr-head { display: flex; align-items: center; gap: 8px; padding: 2px 4px 10px 8px; }
+.dr-head .brand { font-weight: 600; font-size: 15px; display: flex; align-items: center; gap: 8px; }
+.dr-head .icon-btn { margin-left: auto; }
+.dr-item { width: 100%; display: flex; align-items: center; gap: 10px; padding: 9px 10px; border-radius: 10px; font-size: 14px; font-weight: 500; color: var(--ink); }
+.dr-item:active { background: var(--hover); }
+.dr-item svg { color: var(--ink-2); }
+.dr-sec { display: flex; align-items: center; gap: 6px; padding: 14px 10px 6px; font-size: 12px; color: var(--ink-3); }
+.dr-sec .icon-btn { margin-left: auto; width: 28px; height: 28px; }
+#drSearch { display: none; margin: 0 4px 6px; height: 36px; padding: 0 12px; border: 0; border-radius: 10px; background: var(--field); color: var(--ink); font: inherit; font-size: 16px; outline: 0; }
+#drSearch.show { display: block; }
+.dr-list-wrap { position: relative; flex: 1; overflow-y: auto; -webkit-overflow-scrolling: touch; }
+.glide { position: absolute; left: 0; right: 0; top: 0; height: 0; border-radius: 10px; background: var(--hover); opacity: 0; transition: transform .22s cubic-bezier(.2, .8, .2, 1), height .22s, opacity .15s; pointer-events: none; }
+#drList { list-style: none; margin: 0; padding: 0; position: relative; }
+#drList li { position: relative; display: grid; grid-template-columns: 1fr auto; gap: 2px 8px; padding: 8px 6px 8px 10px; border-radius: 10px; cursor: pointer; }
+#drList li.active { background: var(--accent-tint); }
+#drList .t { font-size: 14px; font-weight: 500; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#drList .s { grid-column: 1; font-size: 12px; color: var(--ink-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#drList .m { grid-column: 1; font-size: 11px; color: var(--ink-3); }
+#drList .del { grid-row: 1 / span 3; grid-column: 2; align-self: center; width: 32px; height: 32px; border-radius: 8px; display: grid; place-items: center; color: var(--ink-3); }
+#drList .del:active { background: var(--red-tint); color: var(--red); }
+#drList .live-dot { display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: var(--red); margin-right: 6px; vertical-align: 2px; }
+#drList .none { color: var(--ink-3); font-size: 13px; padding: 10px; cursor: default; }
+.dr-foot { font-size: 11px; color: var(--ink-3); padding: 10px 10px 0; border-top: 1px dashed var(--line-strong); margin-top: 6px; line-height: 1.6; }
+
+/* ---------- sheets / dialogs ---------- */
 dialog {
   border: 0; padding: 0; margin: auto auto 0; width: 100%; max-width: 560px;
   background: var(--surface); color: var(--ink); border-radius: 20px 20px 0 0; box-shadow: var(--shadow-overlay);
@@ -240,15 +289,17 @@ dialog[open] { animation: sheetIn .25s ease-out; }
 @keyframes sheetIn { from { transform: translateY(24px); opacity: 0; } }
 dialog::backdrop { background: oklch(0% 0 0 / .4); backdrop-filter: blur(2px); }
 .sheet { padding: 16px 16px calc(env(safe-area-inset-bottom) + 16px); max-height: 92dvh; overflow-y: auto; }
-.sheet-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+.sheet-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 12px; }
 .sheet-head h2 { margin: 0; font-size: 15px; font-weight: 600; }
+.sheet-head h2:focus { outline: none; }
 .label { font-size: 12px; color: var(--ink-2); margin: 4px 2px 6px; display: block; }
 .label .link { float: right; color: var(--accent); font-size: 12px; }
-.sheet textarea {
+.sheet textarea, .sheet input[type="text"] {
   width: 100%; min-height: 84px; resize: vertical; padding: 10px 12px; border-radius: 12px; border: 0;
   background: var(--field); color: var(--ink); font: inherit; font-size: 16px; line-height: 1.6;
   box-shadow: inset 0 1px 2px oklch(0% 0 0 / .08); outline: 0;
 }
+.sheet input[type="text"] { min-height: 0; height: 42px; margin-bottom: 10px; }
 .menu { margin-top: 14px; border-radius: 14px; box-shadow: 0 0 0 1px var(--line); overflow: hidden; }
 .menu > button, .menu > .row {
   width: 100%; display: flex; align-items: center; gap: 10px; padding: 13px 14px; text-align: left; font-size: 14px;
@@ -256,7 +307,6 @@ dialog::backdrop { background: oklch(0% 0 0 / .4); backdrop-filter: blur(2px); }
 .menu > * + * { border-top: 1px solid var(--line); }
 .menu > button:active { background: var(--hover); }
 .menu svg { color: var(--ink-2); }
-.menu .danger, .menu .danger svg { color: var(--red); }
 .menu .row .grow { flex: 1; min-width: 0; }
 .menu .row small { display: block; color: var(--ink-3); font-size: 12px; margin-top: 2px; line-height: 1.5; }
 .switch { position: relative; width: 44px; height: 26px; flex: none; }
@@ -272,6 +322,32 @@ dialog::backdrop { background: oklch(0% 0 0 / .4); backdrop-filter: blur(2px); }
 .section-title { font-size: 12px; color: var(--ink-2); margin: 18px 2px 0; font-weight: 600; }
 .hint { font-size: 12px; color: var(--ink-3); margin: 14px 2px 0; line-height: 1.7; }
 
+/* 全文ビュー（Apple Intelligence の作文ツール・リーダー要約用） */
+#fullDlg { margin: 0; max-width: none; height: 100dvh; max-height: none; border-radius: 0; }
+#fullDlg .sheet { max-height: none; height: 100%; display: flex; flex-direction: column; padding-top: calc(env(safe-area-inset-top) + 12px); }
+.full-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 8px; }
+.full-actions .pill { height: 34px; font-size: 13px; padding: 0 12px; }
+.ai-hint { font-size: 12px; color: var(--ink-2); background: var(--accent-tint); border-radius: 10px; padding: 8px 10px; line-height: 1.6; margin-bottom: 10px; }
+#fullArticle { flex: 1; overflow-y: auto; -webkit-user-select: text; user-select: text; font-size: 16px; line-height: 1.85; padding: 4px 2px 40px; }
+#fullArticle h1 { font-size: 20px; margin: 4px 0 2px; }
+#fullArticle .meta { font-size: 12px; color: var(--ink-3); margin: 0 0 12px; }
+#fullArticle h2 { font-size: 15px; margin: 22px 0 4px; }
+#fullArticle h2 small { font-weight: 400; color: var(--ink-3); margin-left: 6px; font-size: 12px; }
+#fullArticle p { margin: 0 0 10px; }
+#fullArticle blockquote { margin: 0 0 10px; padding: 4px 10px; border-left: 3px solid var(--accent); color: var(--ink-2); }
+#fullArticle figure { margin: 6px 0 12px; }
+#fullArticle figure img { max-width: 100%; border-radius: 10px; }
+#fullArticle figcaption { font-size: 12px; color: var(--ink-3); }
+
+/* 画像ビューア */
+#imgDlg { margin: auto; max-width: min(720px, 96vw); border-radius: 16px; }
+#imgDlg .sheet { max-height: 90dvh; }
+#imgDlg img { display: block; max-width: 100%; max-height: 64dvh; margin: 0 auto; border-radius: 10px; }
+#imgDlg .cap { font-size: 14px; margin: 10px 2px 0; }
+
+/* View Transitions（商談の切り替え） */
+::view-transition-old(root), ::view-transition-new(root) { animation-duration: .22s; }
+
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation: none !important; transition: none !important; }
 }
@@ -279,17 +355,28 @@ dialog::backdrop { background: oklch(0% 0 0 / .4); backdrop-filter: blur(2px); }
 </head>
 <body>
 <header id="head">
-  <span class="pix" aria-hidden="true">
-    <i style="--d:0"></i><i style="--d:1"></i><i style="--d:2"></i>
-    <i style="--d:7"></i><i style="--d:8"></i><i style="--d:3"></i>
-    <i style="--d:6"></i><i style="--d:5"></i><i style="--d:4"></i>
-  </span>
-  <span id="stateLabel">待機中</span>
-  <span id="elapsed" class="mono"></span>
-  <span id="wl" class="chip"></span>
-  <button class="icon-btn" id="menuBtn" aria-label="設定">
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 7h10M18 7h2M4 17h4M12 17h8"/><circle cx="16" cy="7" r="2"/><circle cx="10" cy="17" r="2"/></svg>
+  <button class="icon-btn" id="drawerBtn" aria-label="商談の履歴">
+    <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="4.5" width="17" height="15" rx="3"/><path d="M9.5 4.5v15"/></svg>
   </button>
+  <div class="hd-state">
+    <span class="pix" aria-hidden="true">
+      <i style="--d:0"></i><i style="--d:1"></i><i style="--d:2"></i>
+      <i style="--d:7"></i><i style="--d:8"></i><i style="--d:3"></i>
+      <i style="--d:6"></i><i style="--d:5"></i><i style="--d:4"></i>
+    </span>
+    <span id="stateLabel">待機中</span>
+    <span id="elapsed" class="mono"></span>
+    <span id="meter" class="meter" title="マイクの音量"><i></i><i></i><i></i><i></i><i></i></span>
+  </div>
+  <div class="hd-right">
+    <span id="wl" class="chip"></span>
+    <button class="icon-btn" id="fullBtn" aria-label="全文を表示">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5M9 13h6M9 17h4"/></svg>
+    </button>
+    <button class="icon-btn" id="menuBtn" aria-label="設定">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 7h10M18 7h2M4 17h4M12 17h8"/><circle cx="16" cy="7" r="2"/><circle cx="10" cy="17" r="2"/></svg>
+    </button>
+  </div>
 </header>
 <div id="legend" aria-label="蛍光ペンの凡例">
   <span><i style="background:var(--hl-req)"></i>要望</span>
@@ -299,10 +386,12 @@ dialog::backdrop { background: oklch(0% 0 0 / .4); backdrop-filter: blur(2px); }
 </div>
 
 <main id="log">
+  <div class="session-title" id="sessionTitle"></div>
   <div id="banner"></div>
+  <div id="standaloneNote">ホーム画面のアプリとして開いています。この画面では音声認識が動かないことがあり、保存した商談も Safari とは別になります。<a id="openSafari" href="#">Safari で開く</a>（ホーム画面に追加し直すときは「Webアプリとして開く」をオフにしてください）</div>
   <div class="empty" id="empty">
     <span class="pix" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></span>
-    <div><b>録音を始めると、ここに文字が流れます</b><br>音声は保存せず、テキストもこの端末内だけに残ります</div>
+    <div><b>録音を始めると、ここに文字が流れます</b><br>音声は保存せず、テキストと写真もこの端末内だけに残ります</div>
   </div>
   <div id="segs"></div>
   <div id="interim"></div>
@@ -333,16 +422,20 @@ dialog::backdrop { background: oklch(0% 0 0 / .4); backdrop-filter: blur(2px); }
 <footer>
   <div class="dock">
     <div class="note-row">
-      <input id="noteInput" placeholder="手入力メモを追加…（例：SSO必須）" enterkeyhint="done" autocomplete="off">
+      <input id="noteInput" placeholder="メモ・写真の説明（音声入力も可）" enterkeyhint="done" autocomplete="off">
       <button id="noteAdd" aria-label="メモを追加" disabled>
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5M6 11l6-6 6 6"/></svg>
       </button>
     </div>
     <div class="actions">
       <button class="pill" id="recBtn"><span class="dot"></span><span id="recLabel">録音開始</span></button>
-      <button class="pill" id="starBtn" aria-label="直前の発言を重要にする">
+      <button class="pill sq" id="starBtn" aria-label="直前の発言を重要にする">
         <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M12 3.5l2.6 5.3 5.9.9-4.3 4.1 1 5.8L12 16.9l-5.2 2.7 1-5.8-4.3-4.1 5.9-.9z"/></svg>
       </button>
+      <button class="pill sq" id="camBtn" aria-label="写真を撮って挟み込む">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8.5A2.5 2.5 0 0 1 6.5 6h1.6l1.4-2h5l1.4 2h1.6A2.5 2.5 0 0 1 20 8.5v8a2.5 2.5 0 0 1-2.5 2.5h-11A2.5 2.5 0 0 1 4 16.5z"/><circle cx="12" cy="12.5" r="3.3"/></svg>
+      </button>
+      <input type="file" id="camInput" accept="image/*" capture="environment" hidden>
       <button class="pill" id="sendBtn">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5M12 18v-6M9 15l3-3 3 3"/></svg>
         送る<span class="count mono" id="sendCount">0</span>
@@ -353,6 +446,28 @@ dialog::backdrop { background: oklch(0% 0 0 / .4); backdrop-filter: blur(2px); }
 
 <div id="toast"></div>
 
+<div id="scrim"></div>
+<aside id="drawer" aria-label="商談の履歴">
+  <div class="dr-head">
+    <span class="brand"><span class="pix" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></span>Live Scribe</span>
+    <button class="icon-btn" id="drawerClose" aria-label="閉じる">
+      <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="4.5" width="17" height="15" rx="3"/><path d="M9.5 4.5v15M15.5 10l-2 2 2 2"/></svg>
+    </button>
+  </div>
+  <button class="dr-item" id="newSessionBtn">
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h8"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/></svg>
+    新しい商談
+  </button>
+  <div class="dr-sec">商談の履歴
+    <button class="icon-btn" id="drSearchBtn" aria-label="検索">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="6.5"/><path d="M20 20l-4-4"/></svg>
+    </button>
+  </div>
+  <input id="drSearch" type="search" placeholder="商談名・内容で検索" autocomplete="off">
+  <div class="dr-list-wrap"><div class="glide" id="glide"></div><ul id="drList"></ul></div>
+  <div class="dr-foot" id="drFoot"></div>
+</aside>
+
 <dialog id="dlg">
   <div class="sheet">
     <div class="sheet-head">
@@ -361,7 +476,9 @@ dialog::backdrop { background: oklch(0% 0 0 / .4); backdrop-filter: blur(2px); }
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>
       </button>
     </div>
-    <label class="label" for="contextInput">商談のコンテキスト（任意・誤変換の補正に使われます）</label>
+    <label class="label" for="titleInput">商談名（この商談のみ）</label>
+    <input type="text" id="titleInput" placeholder="例：テスト商事 申請ワークフロー" autocomplete="off">
+    <label class="label" for="contextInput">商談のコンテキスト（この商談のみ・誤変換の補正に使われます）</label>
     <textarea id="contextInput" placeholder="例：〇〇社 情報システム部。テーマは経費精算のワークフロー化。固有名詞：SmartFlow、Entra ID"></textarea>
     <label class="label" for="instrInput" style="margin-top:12px">Claude への指示（ファイル末尾に付きます）<button id="resetInstr" class="link">既定に戻す</button></label>
     <textarea id="instrInput" style="min-height:140px"></textarea>
@@ -372,12 +489,16 @@ dialog::backdrop { background: oklch(0% 0 0 / .4); backdrop-filter: blur(2px); }
         <span class="grow">蛍光ペン<small>要望・課題・宿題・数字の言い回しにマーカーを引きます</small></span>
         <span class="switch"><input type="checkbox" id="hlToggle"><span></span></span>
       </label>
+      <label class="row">
+        <span class="grow">音量メーターと停止の検知<small>録音中にマイクの音量を表示し、声は届いているのに文字起こしが止まっているときに知らせます。うまく録音できない場合はオフにしてください。</small></span>
+        <span class="switch"><input type="checkbox" id="meterToggle"><span></span></span>
+      </label>
     </div>
 
     <div class="section-title">AI メモ（実験）</div>
     <div class="menu">
       <label class="row">
-        <span class="grow">画面下に AI メモを表示<small>聞き逃したときのキャッチアップ用です。端末内の小型 LLM が会話の区間ごとに「話題の見出し」を付け、その区間の代表的な発言を原文のまま添えます。小型モデルの要約は数字を誤るため、要約文は作りません。文字起こしは端末の外に出ません。</small></span>
+        <span class="grow">画面下に AI メモを表示<small>聞き逃したときのキャッチアップ用です。端末内の小型 LLM が会話の区間ごとに「話題の見出し」を付け、その区間の代表的な発言を原文のまま添えます。文字起こしは端末の外に出ません。</small></span>
         <span class="switch"><input type="checkbox" id="aiToggle"><span></span></span>
       </label>
       <div class="row">
@@ -394,27 +515,92 @@ dialog::backdrop { background: oklch(0% 0 0 / .4); backdrop-filter: blur(2px); }
     <div class="menu">
       <button id="downloadAll">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12M8 11l4 4 4-4"/><path d="M5 21h14"/></svg>
-        全文をダウンロード
+        この商談の全文をダウンロード
       </button>
       <button id="shareAll">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 15V3M8 7l4-4 4 4"/><path d="M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-7"/></svg>
-        全文を共有シートで送る
-      </button>
-      <button id="newSession" class="danger">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/></svg>
-        新しい商談を始める（端末内のデータを削除）
+        この商談の全文を共有シートで送る
       </button>
     </div>
-    <p class="hint">「送る」は前回以降の差分を .txt ファイルとしてダウンロードします。「ファイル」アプリ &gt; ダウンロード からファイルを開き、共有で Slack に送ってください。<br>音声は保存しません。テキストはこの端末のブラウザ内にのみ保存されます。文字起こしはブラウザ標準の音声認識（iOS では Apple）を利用します。AI 要約のモデルは初回のみ Hugging Face からダウンロードし、ブラウザ内にキャッシュします。</p>
+    <p class="hint">「送る」は前回以降の差分をダウンロードします（写真を含む場合は .zip、含まない場合は .txt）。「ファイル」アプリ &gt; ダウンロード から開き、共有で Slack に送ってください。商談の切り替え・削除は左上のボタンから行えます。<br>音声は保存しません。テキストと写真はこの端末のブラウザ内にのみ保存されます。文字起こしはブラウザ標準の音声認識（iOS では Apple）を利用します。AI メモのモデルは初回のみ Hugging Face からダウンロードし、ブラウザ内にキャッシュします。</p>
+  </div>
+</dialog>
+
+<dialog id="fullDlg">
+  <div class="sheet">
+    <div class="sheet-head">
+      <h2 tabindex="-1" autofocus>全文</h2>
+      <button class="icon-btn" id="closeFull" aria-label="閉じる">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>
+      </button>
+    </div>
+    <div class="full-actions">
+      <button class="pill" id="selectAll">全文を選択</button>
+      <button class="pill" id="openReader">リーダー表示用ページを開く</button>
+    </div>
+    <div class="ai-hint">全文を選択して、出てきたメニューの［作文ツール］→［要約］［要点］を選ぶと、Apple Intelligence が端末内で要約します。リーダー表示用ページでは、Safari のリーダー表示の「要約」も使えます（対応機種・設定が必要です）。</div>
+    <article id="fullArticle"></article>
+  </div>
+</dialog>
+
+<dialog id="imgDlg">
+  <div class="sheet">
+    <div class="sheet-head">
+      <h2 id="imgTitle">写真</h2>
+      <div style="display:flex;gap:2px">
+        <button class="icon-btn" id="imgDelete" aria-label="この写真を削除">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/></svg>
+        </button>
+        <button class="icon-btn" id="closeImg" aria-label="閉じる">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>
+        </button>
+      </div>
+    </div>
+    <img id="imgView" alt="">
+    <p class="cap" id="imgCap"></p>
+    <p class="hint">写真の文字は長押しで選択できます（iPhone のテキスト認識）。</p>
   </div>
 </dialog>
 
 <script>
 (() => {
   const $ = (s) => document.querySelector(s);
-  const KEY = 'livescribe.v1';
+  const LEGACY_KEY = 'livescribe.v1';
   const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
   const STAR_SVG = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M12 3.5l2.6 5.3 5.9.9-4.3 4.1 1 5.8L12 16.9l-5.2 2.7 1-5.8-4.3-4.1 5.9-.9z"/></svg>';
+  const TRASH_SVG = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/></svg>';
+  const vt = (fn) => (document.startViewTransition ? document.startViewTransition(fn) : fn());
+
+  // ---------- IndexedDB（商談と写真を端末内に保存） ----------
+  const DB = (() => {
+    let dbp;
+    const open = () => (dbp ??= new Promise((resolve, reject) => {
+      const r = indexedDB.open('livescribe', 1);
+      r.onupgradeneeded = () => {
+        const db = r.result;
+        db.createObjectStore('sessions', { keyPath: 'id' });
+        db.createObjectStore('images', { keyPath: 'id' }).createIndex('session', 'session');
+      };
+      r.onsuccess = () => resolve(r.result);
+      r.onerror = () => reject(r.error);
+    }));
+    const tx = async (store, mode, fn) => {
+      const db = await open();
+      return new Promise((resolve, reject) => {
+        const t = db.transaction(store, mode);
+        const req = fn(t.objectStore(store));
+        t.oncomplete = () => resolve(req?.result);
+        t.onerror = () => reject(t.error);
+      });
+    };
+    return {
+      put: (store, v) => tx(store, 'readwrite', (s) => s.put(v)),
+      get: (store, k) => tx(store, 'readonly', (s) => s.get(k)),
+      all: (store) => tx(store, 'readonly', (s) => s.getAll()),
+      del: (store, k) => tx(store, 'readwrite', (s) => s.delete(k)),
+      imagesOf: (sid) => tx('images', 'readonly', (s) => s.index('session').getAll(sid)),
+    };
+  })();
 
   // ---------- state ----------
   const DEFAULT_INSTR = [
@@ -433,28 +619,41 @@ dialog::backdrop { background: oklch(0% 0 0 / .4); backdrop-filter: blur(2px); }
     '4. プロトタイプで作るべき画面・機能（優先度順）',
     '5. 未確認事項と、次に顧客へ聞くべき質問',
   ].join('\n');
+  const IMAGES_INSTR = '- images は商談中に撮った写真（ホワイトボード、帳票、既存システムの画面など）で、同じ zip に入っています。transcript 内の［写真］の位置で撮影しました。画面や帳票の再現、要件の裏付けに使ってください。';
+  const newId = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
   const fresh = (keep = {}) => ({
-    segs: [], sentUpTo: 0, sendCount: 0, startedAt: null, context: keep.context || '', instr: keep.instr ?? null,
+    id: newId(), createdAt: Date.now(), updatedAt: Date.now(), title: '',
+    segs: [], sentUpTo: 0, sendCount: 0, startedAt: null, context: '', instr: keep.instr ?? null,
     topics: [], topicUpTo: 0,
   });
-  let S;
-  try { S = JSON.parse(localStorage.getItem(KEY)) || fresh(); } catch { S = fresh(); }
-  S.context ??= S.prefix || ''; S.instr ??= null; delete S.prefix;
-  S.topics ??= []; S.topicUpTo ??= 0; delete S.questions;
-  delete S.sums; delete S.sumUpTo; delete S.items; delete S.itemsUpTo;
+  const normalize = (s) => {
+    s.context ??= s.prefix || ''; s.instr ??= null; s.title ??= '';
+    s.topics ??= []; s.topicUpTo ??= 0;
+    for (const k of ['prefix', 'questions', 'sums', 'sumUpTo', 'items', 'itemsUpTo']) delete s[k];
+    return s;
+  };
+  let S = fresh();
+
   // 端末ごとの表示設定（商談データとは別に保持）
   const PKEY = 'livescribe.prefs';
   let P;
   try { P = JSON.parse(localStorage.getItem(PKEY)) || {}; } catch { P = {}; }
-  P.hl ??= true; P.ai ??= false; P.model ??= 'lfm2-350m';
-  // v2: iPhone で Qwen3 が落ちる問題を受けて既定を軽量モデルに変更
+  P.hl ??= true; P.ai ??= false; P.model ??= 'lfm2-350m'; P.meter ??= true;
   if (P.v !== 2) { P.model = 'lfm2-350m'; P.v = 2; delete P.loaded; }
-  const save = () => { try { localStorage.setItem(KEY, JSON.stringify(S)); } catch {} };
   const savePrefs = () => { try { localStorage.setItem(PKEY, JSON.stringify(P)); } catch {} };
+
+  // 書き込みはまとめて行う（発言のたびに IndexedDB へ書かない）
+  let saveTimer = null;
+  const flush = () => { clearTimeout(saveTimer); saveTimer = null; S.updatedAt = Date.now(); return DB.put('sessions', S).catch(() => {}); };
+  const save = () => { clearTimeout(saveTimer); saveTimer = setTimeout(flush, 400); };
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden' && saveTimer) flush(); });
+  window.addEventListener('pagehide', () => { if (saveTimer) flush(); });
 
   const pad = (n) => String(n).padStart(2, '0');
   const fmt = (ts) => { const d = new Date(ts); return `${pad(d.getHours())}:${pad(d.getMinutes())}`; };
-  const esc = (s) => s.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  const fmtDate = (ts) => { const d = new Date(ts); return `${d.getMonth() + 1}/${d.getDate()} ${fmt(ts)}`; };
+  const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  const titleOf = (s) => s.title?.trim() || `${fmtDate(s.startedAt || s.createdAt)} の商談`;
 
   // ---------- 蛍光ペン（言い回しのルールで句にマーカー） ----------
   const HL_RULES = [
@@ -472,6 +671,29 @@ dialog::backdrop { background: oklch(0% 0 0 / .4); backdrop-filter: blur(2px); }
     return hit ? `<mark class="${hit[0]}" title="${LABEL[hit[0]]}">${html}</mark>` : html;
   }).join('');
 
+  // ---------- 写真（IndexedDB の Blob を表示用 URL に変換してキャッシュ） ----------
+  const imgUrls = new Map();
+  const imgUrl = async (id) => {
+    if (imgUrls.has(id)) return imgUrls.get(id);
+    const rec = await DB.get('images', id);
+    if (!rec) return null;
+    const url = URL.createObjectURL(rec.blob);
+    imgUrls.set(id, url);
+    return url;
+  };
+  const clearImgUrls = () => { for (const u of imgUrls.values()) URL.revokeObjectURL(u); imgUrls.clear(); };
+  const hydrate = (root) => root.querySelectorAll('img[data-img]:not([src])').forEach(async (el) => {
+    const url = await imgUrl(el.dataset.img);
+    if (url) el.src = url;
+  });
+  // 写真の書き出し用ファイル名（商談内の通し番号で決まる）
+  const imageNames = (sess) => {
+    const names = new Map();
+    let n = 0;
+    for (const s of sess.segs) if (s.kind === 'image') { n++; const d = new Date(s.ts); names.set(s.img, `images/photo-${pad(n)}_${pad(d.getHours())}${pad(d.getMinutes())}.jpg`); }
+    return names;
+  };
+
   // ---------- UI helpers ----------
   const log = $('#log'), segsEl = $('#segs'), interimEl = $('#interim');
   let toastTimer;
@@ -486,10 +708,14 @@ dialog::backdrop { background: oklch(0% 0 0 / .4); backdrop-filter: blur(2px); }
   log.addEventListener('scroll', () => $('#toBottom').classList.toggle('show', !nearBottom()));
   $('#toBottom').onclick = scrollBottom;
 
+  const segBody = (seg) => {
+    if (seg.kind === 'note') return '<span class="tag">メモ</span>' + esc(seg.text);
+    if (seg.kind === 'image') return `<img class="thumb" data-img="${seg.img}" alt="写真">` + (seg.text ? `<span class="cap">${esc(seg.text)}</span>` : '');
+    return P.hl ? hl(seg.text) : esc(seg.text);
+  };
   const segHTML = (seg, i) =>
-    `<div class="seg${seg.kind === 'note' ? ' note' : ''}${seg.star ? ' starred' : ''}" data-i="${i}">` +
-    `<span class="time mono">${fmt(seg.ts)}</span>` +
-    `<span class="txt">${seg.kind === 'note' ? '<span class="tag">メモ</span>' + esc(seg.text) : P.hl ? hl(seg.text) : esc(seg.text)}</span>` +
+    `<div class="seg${seg.kind ? ' ' + seg.kind : ''}${seg.star ? ' starred' : ''}" data-i="${i}">` +
+    `<span class="time mono">${fmt(seg.ts)}</span><span class="txt">${segBody(seg)}</span>` +
     `<button class="star" data-act="star" aria-label="重要">${STAR_SVG}</button></div>`;
   const dividerHTML = () => `<div class="divider"><span>送信済み #${S.sendCount}</span></div>`;
 
@@ -503,8 +729,10 @@ dialog::backdrop { background: oklch(0% 0 0 / .4); backdrop-filter: blur(2px); }
     if (S.sentUpTo === S.segs.length && S.sendCount > 0) html += dividerHTML();
     segsEl.innerHTML = html;
     segsEl.querySelectorAll('.seg').forEach((el) => { el.style.animation = 'none'; });
+    hydrate(segsEl);
     $('#empty').style.display = S.segs.length ? 'none' : '';
     $('#legend').classList.toggle('off', !P.hl);
+    $('#sessionTitle').textContent = titleOf(S);
     updSend();
     if (keep) scrollBottom();
   };
@@ -512,12 +740,14 @@ dialog::backdrop { background: oklch(0% 0 0 / .4); backdrop-filter: blur(2px); }
     const el = segsEl.querySelector(`.seg[data-i="${i}"]`);
     if (!el) return;
     el.outerHTML = segHTML(S.segs[i], i);
-    segsEl.querySelector(`.seg[data-i="${i}"]`).style.animation = 'none';
+    const nel = segsEl.querySelector(`.seg[data-i="${i}"]`);
+    nel.style.animation = 'none'; hydrate(nel);
   };
   const appendSeg = (seg) => {
     const keep = nearBottom();
     S.segs.push(seg); save();
     segsEl.insertAdjacentHTML('beforeend', segHTML(seg, S.segs.length - 1));
+    hydrate(segsEl.lastElementChild);
     $('#empty').style.display = 'none';
     updSend();
     if (keep) scrollBottom();
@@ -530,6 +760,8 @@ dialog::backdrop { background: oklch(0% 0 0 / .4); backdrop-filter: blur(2px); }
   };
 
   segsEl.addEventListener('click', (e) => {
+    const thumb = e.target.closest('img[data-img]');
+    if (thumb) return openImage(+thumb.closest('.seg').dataset.i);
     const btn = e.target.closest('[data-act="star"]'); if (!btn) return;
     const i = +btn.closest('.seg').dataset.i;
     S.segs[i].star = !S.segs[i].star;
@@ -552,14 +784,69 @@ dialog::backdrop { background: oklch(0% 0 0 / .4); backdrop-filter: blur(2px); }
   $('#noteAdd').onclick = addNote;
   noteInput.addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.isComposing) addNote(); });
 
+  // ---------- カメラ（写真を撮影時刻の位置に挟み込む） ----------
+  const shrink = (file, max = 1600) => new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(file);
+    const im = new Image();
+    im.onload = () => {
+      const k = Math.min(1, max / Math.max(im.naturalWidth, im.naturalHeight));
+      const c = document.createElement('canvas');
+      c.width = Math.round(im.naturalWidth * k); c.height = Math.round(im.naturalHeight * k);
+      c.getContext('2d').drawImage(im, 0, 0, c.width, c.height);
+      URL.revokeObjectURL(url);
+      c.toBlob((b) => (b ? resolve({ blob: b, w: c.width, h: c.height }) : reject(new Error('画像を変換できませんでした'))), 'image/jpeg', 0.85);
+    };
+    im.onerror = () => { URL.revokeObjectURL(url); reject(new Error('画像を読み込めませんでした')); };
+    im.src = url;
+  });
+  $('#camBtn').onclick = () => $('#camInput').click();
+  $('#camInput').onchange = async (e) => {
+    const file = e.target.files?.[0]; e.target.value = '';
+    if (!file) return;
+    try {
+      const ts = Date.now();
+      const { blob, w, h } = await shrink(file);
+      const id = newId();
+      await DB.put('images', { id, session: S.id, ts, blob, w, h });
+      // メモ欄に入力中の文字があれば写真の説明として使う
+      const caption = noteInput.value.trim();
+      if (caption) { noteInput.value = ''; $('#noteAdd').disabled = true; }
+      appendSeg({ kind: 'image', ts, img: id, text: caption, star: false });
+      scrollBottom(); flush();
+      toast('写真を挟み込みました');
+    } catch (err) { toast(err.message || '写真を保存できませんでした'); }
+  };
+  let viewing = -1;
+  const openImage = async (i) => {
+    const seg = S.segs[i]; if (!seg) return;
+    viewing = i;
+    $('#imgView').src = (await imgUrl(seg.img)) || '';
+    $('#imgTitle').textContent = `写真 ${fmt(seg.ts)}`;
+    $('#imgCap').textContent = seg.text || '';
+    $('#imgDlg').showModal();
+  };
+  $('#closeImg').onclick = () => $('#imgDlg').close();
+  $('#imgDlg').addEventListener('click', (e) => { if (e.target.id === 'imgDlg') $('#imgDlg').close(); });
+  $('#imgDelete').onclick = async () => {
+    const seg = S.segs[viewing];
+    if (!seg || !confirm('この写真を削除しますか？')) return;
+    await DB.del('images', seg.img).catch(() => {});
+    S.segs.splice(viewing, 1);
+    // 削除で後ろの発言の位置がずれるので、位置で持っている値をそろえる
+    const shift = (n) => (n > viewing ? n - 1 : n);
+    S.sentUpTo = shift(S.sentUpTo); S.topicUpTo = shift(S.topicUpTo);
+    S.topics.forEach((t) => { t.from = shift(t.from); t.to = shift(t.to); t.quotes = (t.quotes || []).filter((q) => q !== viewing).map(shift); });
+    flush(); $('#imgDlg').close(); renderAll(); AI.render(); toast('写真を削除しました');
+  };
+
   // ---------- wake lock (画面を点けっぱなしにする) ----------
   let wakeLock = null;
   const updWL = () => {
     const el = $('#wl');
     el.className = 'chip';
     if (!running) { el.textContent = ''; return; }
-    if (!('wakeLock' in navigator)) { el.textContent = '常時点灯 非対応'; el.classList.add('ng'); }
-    else if (wakeLock) { el.textContent = '画面常時点灯'; el.classList.add('ok'); }
+    if (!('wakeLock' in navigator)) { el.textContent = '点灯 非対応'; el.classList.add('ng'); }
+    else if (wakeLock) { el.textContent = '画面点灯中'; el.classList.add('ok'); }
     else el.textContent = '';
   };
   const lockOn = async () => {
@@ -572,15 +859,65 @@ dialog::backdrop { background: oklch(0% 0 0 / .4); backdrop-filter: blur(2px); }
   };
   const lockOff = async () => { try { await wakeLock?.release(); } catch {} wakeLock = null; updWL(); };
 
+  // ---------- 音量メーターと停止の検知 ----------
+  const Meter = (() => {
+    let stream = null, ctx = null, raf = 0, disabled = false;
+    let voiceMs = 0, lastFrame = 0;
+    const bars = [...document.querySelectorAll('#meter i')];
+    const VOICE = 0.025;
+    const stopAll = () => {
+      cancelAnimationFrame(raf); raf = 0;
+      stream?.getTracks().forEach((t) => t.stop()); stream = null;
+      ctx?.close().catch(() => {}); ctx = null;
+      $('#meter').classList.remove('on');
+    };
+    const start = async () => {
+      if (!P.meter || disabled || stream || !navigator.mediaDevices?.getUserMedia) return;
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        ctx = new (window.AudioContext || window.webkitAudioContext)();
+        const an = ctx.createAnalyser(); an.fftSize = 1024;
+        ctx.createMediaStreamSource(stream).connect(an);
+        const buf = new Float32Array(an.fftSize);
+        $('#meter').classList.add('on');
+        lastFrame = performance.now(); voiceMs = 0;
+        const loop = (now) => {
+          an.getFloatTimeDomainData(buf);
+          let sum = 0; for (let i = 0; i < buf.length; i++) sum += buf[i] * buf[i];
+          const rms = Math.sqrt(sum / buf.length);
+          const lv = Math.min(1, rms / 0.12);
+          bars.forEach((b, k) => { const on = lv > k / bars.length; b.style.height = on ? `${4 + 2 * k}px` : '3px'; b.classList.toggle('lit', on); });
+          if (rms > VOICE) voiceMs += now - lastFrame;
+          lastFrame = now;
+          // 声は届いているのに 20 秒以上文字起こしが来ない → 止まっている可能性
+          if (running && voiceMs > 6000 && Date.now() - lastResultAt > 20000) {
+            banner('声は届いていますが、文字起こしが止まっているようです。■停止 → ●録音再開 を試してください。');
+            stalled = true; voiceMs = 0;
+          }
+          raf = requestAnimationFrame(loop);
+        };
+        raf = requestAnimationFrame(loop);
+      } catch { stopAll(); }
+    };
+    // iOS で音声認識とマイクを取り合った場合はメーター側を止める
+    const conflict = () => {
+      if (!stream) return false;
+      disabled = true; stopAll();
+      banner('マイクの同時利用ができなかったため、音量メーターを止めました（設定でオフにできます）。');
+      return true;
+    };
+    return { start, stop: stopAll, conflict, resetVoice: () => { voiceMs = 0; } };
+  })();
+
   // ---------- speech recognition ----------
-  let running = false, rec = null, errStreak = 0, timer = null;
+  let running = false, rec = null, errStreak = 0, timer = null, lastResultAt = 0, stalled = false;
   let lastSegIdxThisRec = -1;
 
   const commit = (text) => {
     text = text.trim(); if (!text) return;
     // iOS は continuous 時に「前回の確定文＋続き」を返すことがあるので重複を吸収する
     const prev = S.segs[lastSegIdxThisRec];
-    if (prev && prev.kind !== 'note') {
+    if (prev && !prev.kind) {
       if (text.startsWith(prev.text)) { prev.text = text; save(); renderOne(lastSegIdxThisRec); return; }
       if (prev.text.startsWith(text)) return;
     }
@@ -602,7 +939,8 @@ dialog::backdrop { background: oklch(0% 0 0 / .4); backdrop-filter: blur(2px); }
     let interim = '';
     lastSegIdxThisRec = -1;
     r.onresult = (e) => {
-      errStreak = 0; interim = '';
+      errStreak = 0; interim = ''; lastResultAt = Date.now(); Meter.resetVoice();
+      if (stalled) { stalled = false; banner(''); }
       for (let i = e.resultIndex; i < e.results.length; i++) {
         const res = e.results[i], t = res[0].transcript;
         if (res.isFinal) { if (!done.has(i)) { done.add(i); commit(t); } }
@@ -614,6 +952,8 @@ dialog::backdrop { background: oklch(0% 0 0 / .4); backdrop-filter: blur(2px); }
       if (e.error === 'not-allowed' || e.error === 'service-not-allowed') {
         banner('マイクまたは音声認識が許可されていません。設定 > Safari > マイク、および 設定 > Siri（音声入力）を確認してください。');
         stop();
+      } else if (e.error === 'audio-capture' && Meter.conflict()) {
+        errStreak = 0;
       } else if (e.error !== 'no-speech' && e.error !== 'aborted') {
         errStreak++;
       }
@@ -643,28 +983,32 @@ dialog::backdrop { background: oklch(0% 0 0 / .4); backdrop-filter: blur(2px); }
   const start = () => {
     if (!SR) return banner('このブラウザは音声認識に対応していません。iPhone の Safari で開いてください。');
     banner('');
-    running = true; errStreak = 0;
+    running = true; errStreak = 0; lastResultAt = Date.now(); stalled = false;
     if (!S.startedAt) { S.startedAt = Date.now(); save(); }
     $('#recLabel').textContent = '停止'; $('#recBtn').classList.add('running');
-    lockOn(); startRec();
+    lockOn(); startRec(); Meter.start();
     clearInterval(timer); timer = setInterval(() => { tick(); AI.maybeRun(); }, 1000); tick();
+    renderDrawer();
   };
   function stop() {
     running = false;
     try { rec?.stop(); } catch {}
-    $('#recLabel').textContent = '録音再開'; $('#recBtn').classList.remove('running');
-    lockOff(); clearInterval(timer); tick();
+    Meter.stop();
+    $('#recLabel').textContent = S.segs.length ? '録音再開' : '録音開始'; $('#recBtn').classList.remove('running');
+    lockOff(); clearInterval(timer); tick(); flush();
+    renderDrawer();
   }
   $('#recBtn').onclick = () => (running ? stop() : start());
 
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'visible' && running) {
       lockOn();
+      lastResultAt = Date.now();
       if (!rec) startRec();
     }
   });
 
-  // ---------- ローカル LLM 要約（Web Worker + WebGPU） ----------
+  // ---------- ローカル LLM（Web Worker + WebGPU） ----------
   const MODELS = {
     'lfm2-350m': { id: 'onnx-community/LFM2-350M-ONNX', label: 'LFM2 350M', size: '約255MB・最軽量（iPhone 向け・精度は粗め）' },
     'qwen3-0.6b': { id: 'onnx-community/Qwen3-0.6B-ONNX', label: 'Qwen3 0.6B', size: '約570MB・精度高め（iPhone ではメモリ不足で落ちることあり）' },
@@ -689,11 +1033,11 @@ dialog::backdrop { background: oklch(0% 0 0 / .4); backdrop-filter: blur(2px); }
       .replace(/(に関する|についての|について)(議論|質問|話し?合い|話|会話|説明|相談|確認).*$/, '').replace(/^今日の/, '').trim();
     return t.length > 18 ? t.slice(0, 18) + '…' : t;
   };
-  // 区間の代表的な発言：★ > 蛍光ペン対象 > 長い発言 の順に最大2つ（時系列順で表示）
-  const pickQuotes = (from, to) => {
+  // 区間の代表的な発言：★ > メモ > 蛍光ペン対象 > 長い発言 の順に最大2つ（時系列順で表示）
+  const pickQuotes = (sess, from, to) => {
     const score = (s) => (s.star ? 100 : 0) + (s.kind === 'note' ? 50 : 0) + (HL_RULES.some(([, re]) => re.test(s.text)) ? 30 : 0) + Math.min(s.text.length, 40) / 4;
-    return S.segs.slice(from, to).map((s, k) => ({ i: from + k, sc: score(s) }))
-      .sort((a, b) => b.sc - a.sc).slice(0, 2).map((x) => x.i).sort((a, b) => a - b);
+    return sess.segs.slice(from, to).map((s, k) => ({ i: from + k, s })).filter((x) => x.s.kind !== 'image' && x.s.text)
+      .map((x) => ({ i: x.i, sc: score(x.s) })).sort((a, b) => b.sc - a.sc).slice(0, 2).map((x) => x.i).sort((a, b) => a - b);
   };
   const clip = (t, n = 46) => (t.length > n ? t.slice(0, n) + '…' : t);
 
@@ -719,7 +1063,7 @@ dialog::backdrop { background: oklch(0% 0 0 / .4); backdrop-filter: blur(2px); }
     };
     const updNext = () => {
       if (!P.ai || !['ready', 'busy'].includes(state)) { nextEl.innerHTML = ''; return; }
-      if (job) {
+      if (job && job.sess === S) {
         nextEl.innerHTML = ring(0.28, true) + `<span class="lbl shimmer">見出しを作成中</span><span class="meta mono">${((performance.now() - jobStart) / 1000).toFixed(1)}s</span>`;
         return;
       }
@@ -752,7 +1096,7 @@ dialog::backdrop { background: oklch(0% 0 0 / .4); backdrop-filter: blur(2px); }
         `<li data-seg="${t.from}"><span class="time mono">${fmt(t.ts0)}</span><span class="t"><b>${esc(t.title)}</b>` +
         (t.quotes || []).filter((i) => S.segs[i]).map((i) => `<span class="quote" data-seg="${i}">「${esc(clip(S.segs[i].text))}」</span>`).join('') +
         '</span></li>').join('');
-      if (!S.topics.length && !job) html += '<li class="empty-row"><span></span><span class="t">会話がある程度たまると、話題ごとに見出しが付きます</span></li>';
+      if (!S.topics.length) html += '<li class="empty-row"><span></span><span class="t">会話がある程度たまると、話題ごとに見出しが付きます</span></li>';
       html += '</ul></div>';
       body.innerHTML = html;
       $('#aiLoad')?.addEventListener('click', load);
@@ -766,7 +1110,7 @@ dialog::backdrop { background: oklch(0% 0 0 / .4); backdrop-filter: blur(2px); }
       el.classList.remove('flash'); void el.offsetWidth; el.classList.add('flash');
     });
 
-    const speechText = (segs) => segs.map((s) => (s.kind === 'note' ? `（メモ）${s.text}` : s.text)).join('\n');
+    const speechText = (segs) => segs.filter((s) => s.text).map((s) => (s.kind === 'note' ? `（メモ）${s.text}` : s.kind === 'image' ? `（写真）${s.text}` : s.text)).join('\n');
     const ask = (messages, maxTokens) => new Promise((resolve, reject) => {
       job.resolve = resolve; job.reject = reject;
       worker.postMessage({ type: 'run', messages, maxTokens });
@@ -774,24 +1118,27 @@ dialog::backdrop { background: oklch(0% 0 0 / .4); backdrop-filter: blur(2px); }
 
     const run = async (force = false) => {
       if (state !== 'ready' || job) return;
-      const pendingSegs = S.segs.slice(S.topicUpTo);
+      // 処理中に商談が切り替わっても、結果は元の商談に書き込む
+      const sess = S;
+      const pendingSegs = sess.segs.slice(sess.topicUpTo);
       const chars = pendingSegs.reduce((n, s) => n + s.text.length, 0);
       const idle = pendingSegs.length && Date.now() - pendingSegs[0].ts >= IDLE_MS;
       if (!pendingSegs.length || !(force || chars >= MIN_CHARS || (idle && chars >= MIN_IDLE_CHARS))) return;
       // たまっている場合は約 MIN_CHARS ずつ区切って、1区間＝1話題にする（残りは次の run で処理）
-      const from = S.topicUpTo;
+      const from = sess.topicUpTo;
       let to = from, acc = 0;
-      while (to < S.segs.length && acc < MIN_CHARS) acc += S.segs[to++].text.length;
-      if (S.segs.length - to <= 1) to = S.segs.length;
-      const segs = S.segs.slice(from, to);
-      job = { ts0: segs[0].ts }; state = 'busy'; jobStart = performance.now();
+      while (to < sess.segs.length && acc < MIN_CHARS) acc += sess.segs[to++].text.length;
+      if (sess.segs.length - to <= 1) to = sess.segs.length;
+      const segs = sess.segs.slice(from, to);
+      job = { sess, ts0: segs[0].ts }; state = 'busy'; jobStart = performance.now();
       setStatus('整理中', { busy: true }); render();
       try {
         const titleOut = await ask([{ role: 'system', content: TITLE_SYS }, { role: 'user', content: speechText(segs).slice(-MAX_TITLE_INPUT) }], 16);
         const title = toTitle(titleOut);
-        S.topics.push({ from, to, ts0: segs[0].ts, ts1: segs[segs.length - 1].ts, title: title || '（見出しなし）', quotes: pickQuotes(from, to) });
-        S.topicUpTo = to; save();
-        job = null; state = 'ready'; setStatus('待機中'); render();
+        sess.topics.push({ from, to, ts0: segs[0].ts, ts1: segs[segs.length - 1].ts, title: title || '（見出しなし）', quotes: pickQuotes(sess, from, to) });
+        sess.topicUpTo = to;
+        if (sess === S) save(); else DB.put('sessions', sess).catch(() => {});
+        job = null; state = 'ready'; setStatus('待機中'); render(); renderDrawer();
         setTimeout(() => run(), 0); // まだたまっていれば続けて処理
       } catch (e) {
         if (job) fail(e.message || String(e));
@@ -854,57 +1201,104 @@ dialog::backdrop { background: oklch(0% 0 0 / .4); backdrop-filter: blur(2px); }
       else { state = 'idle'; setStatus('未読み込み'); render(); }
     };
     const switchModel = () => { worker?.terminate(); worker = null; job = null; state = 'off'; apply(); };
-    const reset = () => {
-      if (state === 'busy') { worker?.terminate(); worker = null; job = null; state = 'off'; apply(); } else render();
-    };
-    return { apply, switchModel, render, maybeRun: () => { if (P.ai) run(); }, reset };
+    return { apply, switchModel, render, maybeRun: () => { if (P.ai) run(); } };
   })();
 
-  // ---------- export (ファイルとして共有 / ダウンロード) ----------
+  // ---------- export（ファイルとして共有 / ダウンロード） ----------
   // LLM 向けの出力：データを XML タグで区切り、指示は末尾に置く
-  const sessionId = () => {
-    const d = new Date(S.startedAt || Date.now());
+  const sessionStamp = (sess = S) => {
+    const d = new Date(sess.startedAt || sess.createdAt || Date.now());
     return `${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}-${pad(d.getHours())}${pad(d.getMinutes())}`;
   };
   const xmlEsc = (s) => s.replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));
   const buildText = (from, to, part) => {
     const segs = S.segs.slice(from, to);
-    if (!segs.length) return '';
-    const speech = segs.filter((s) => s.kind !== 'note');
+    if (!segs.length) return null;
+    const names = imageNames(S);
+    const speech = segs.filter((s) => !s.kind);
     const notes = segs.filter((s) => s.kind === 'note');
+    const images = segs.filter((s) => s.kind === 'image');
     const important = speech.filter((s) => s.star);
 
-    // 近い時刻の発言は1行にまとめて読みやすくする（★付きは単独行のまま）
+    // 近い時刻の発言は1行にまとめて読みやすくする（★付き・写真は単独行）
     const lines = [];
     let cur = null;
-    const flush = () => { if (cur) lines.push(`[${fmt(cur.ts)}]${cur.star ? ' ★' : ''} ${xmlEsc(cur.text)}`); cur = null; };
-    for (const seg of speech) {
+    const flushLine = () => { if (cur) lines.push(`[${fmt(cur.ts)}]${cur.star ? ' ★' : ''} ${xmlEsc(cur.text)}`); cur = null; };
+    for (const seg of segs) {
+      if (seg.kind === 'note') continue;
+      if (seg.kind === 'image') { flushLine(); lines.push(`[${fmt(seg.ts)}] ［写真 ${names.get(seg.img)}］${seg.text ? ' ' + xmlEsc(seg.text) : ''}`); continue; }
       if (cur && !cur.star && !seg.star && seg.ts - cur.last < 30000) { cur.text += ' ' + seg.text; cur.last = seg.ts; }
-      else { flush(); cur = { ...seg, last: seg.ts }; }
+      else { flushLine(); cur = { ...seg, last: seg.ts }; }
     }
-    flush();
+    flushLine();
 
     const d = new Date(S.startedAt || segs[0].ts);
     const attrs = [
-      `session="${sessionId()}"`,
+      `session="${sessionStamp()}"`,
+      `title="${xmlEsc(titleOf(S)).replace(/"/g, '&quot;')}"`,
       `date="${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}"`,
       `part="${part}"`,
       `range="${fmt(segs[0].ts)}-${fmt(segs[segs.length - 1].ts)}"`,
     ].join(' ');
     const list = (items) => items.map((s) => `- [${fmt(s.ts)}] ${xmlEsc(s.text)}`).join('\n');
-    const instr = (S.instr ?? DEFAULT_INSTR).trim();
-    return [
+    let instr = (S.instr ?? DEFAULT_INSTR).trim();
+    if (images.length && instr) instr = instr.replace('\n\n以下を', `\n${IMAGES_INSTR}\n\n以下を`);
+    const text = [
       `<meeting_transcript ${attrs}>`,
       S.context.trim() && `<context>\n${xmlEsc(S.context.trim())}\n</context>`,
       notes.length && `<notes description="私が手入力したメモ。確度が高い">\n${list(notes)}\n</notes>`,
       important.length && `<important description="私が重要マークを付けた発言（音声認識）">\n${list(important)}\n</important>`,
-      speech.length && `<transcript description="音声認識の生テキスト。誤認識あり・話者の区別なし。★は重要マーク">\n${lines.join('\n')}\n</transcript>`,
+      images.length && `<images description="商談中に撮った写真。ファイルは同じ zip 内">\n${images.map((s) => `- [${fmt(s.ts)}] ${names.get(s.img)}${s.text ? ' 説明: ' + xmlEsc(s.text) : ''}`).join('\n')}\n</images>`,
+      lines.length && `<transcript description="音声認識の生テキスト。誤認識あり・話者の区別なし。★は重要マーク、［写真］は撮影位置">\n${lines.join('\n')}\n</transcript>`,
       '</meeting_transcript>',
       instr && `<instructions>\n${instr}\n</instructions>`,
     ].filter(Boolean).join('\n\n') + '\n';
+    return { text, images: images.map((s) => ({ id: s.img, name: names.get(s.img) })) };
   };
 
-  const fileName = (suffix) => `live-scribe_${sessionId()}_${suffix}.txt`;
+  // 最小限の ZIP 作成（無圧縮）。写真は JPEG なので圧縮しなくても大きさはほぼ変わらない
+  const CRC_TABLE = (() => { const t = new Uint32Array(256); for (let n = 0; n < 256; n++) { let c = n; for (let k = 0; k < 8; k++) c = c & 1 ? 0xEDB88320 ^ (c >>> 1) : c >>> 1; t[n] = c >>> 0; } return t; })();
+  const crc32 = (u8) => { let c = 0xFFFFFFFF; for (let i = 0; i < u8.length; i++) c = CRC_TABLE[(c ^ u8[i]) & 0xFF] ^ (c >>> 8); return (c ^ 0xFFFFFFFF) >>> 0; };
+  const makeZip = (files) => {
+    const enc = new TextEncoder(), parts = [], central = [];
+    const d = new Date();
+    const time = (d.getHours() << 11) | (d.getMinutes() << 5) | (d.getSeconds() >> 1);
+    const date = ((d.getFullYear() - 1980) << 9) | ((d.getMonth() + 1) << 5) | d.getDate();
+    let offset = 0;
+    for (const f of files) {
+      const name = enc.encode(f.name), crc = crc32(f.data), size = f.data.length;
+      const h = new DataView(new ArrayBuffer(30));
+      h.setUint32(0, 0x04034b50, true); h.setUint16(4, 20, true); h.setUint16(6, 0x0800, true);
+      h.setUint16(10, time, true); h.setUint16(12, date, true); h.setUint32(14, crc, true);
+      h.setUint32(18, size, true); h.setUint32(22, size, true); h.setUint16(26, name.length, true);
+      parts.push(h, name, f.data);
+      const c = new DataView(new ArrayBuffer(46));
+      c.setUint32(0, 0x02014b50, true); c.setUint16(4, 20, true); c.setUint16(6, 20, true); c.setUint16(8, 0x0800, true);
+      c.setUint16(12, time, true); c.setUint16(14, date, true); c.setUint32(16, crc, true);
+      c.setUint32(20, size, true); c.setUint32(24, size, true); c.setUint16(28, name.length, true); c.setUint32(42, offset, true);
+      central.push(c, name);
+      offset += 30 + name.length + size;
+    }
+    const cdSize = central.reduce((n, p) => n + p.byteLength, 0);
+    const e = new DataView(new ArrayBuffer(22));
+    e.setUint32(0, 0x06054b50, true); e.setUint16(8, files.length, true); e.setUint16(10, files.length, true);
+    e.setUint32(12, cdSize, true); e.setUint32(16, offset, true);
+    return new Blob([...parts, ...central, e], { type: 'application/zip' });
+  };
+
+  // 写真を含むときは .zip（テキスト＋images/）、含まないときは .txt
+  const buildFile = async (from, to, part, suffix) => {
+    const b = buildText(from, to, part);
+    if (!b) return null;
+    const base = `live-scribe_${sessionStamp()}_${suffix}`;
+    if (!b.images.length) return new File([b.text], `${base}.txt`, { type: 'text/plain' });
+    const files = [{ name: `${base}.txt`, data: new TextEncoder().encode(b.text) }];
+    for (const im of b.images) {
+      const rec = await DB.get('images', im.id);
+      if (rec) files.push({ name: im.name, data: new Uint8Array(await rec.blob.arrayBuffer()) });
+    }
+    return new File([makeZip(files)], `${base}.zip`, { type: 'application/zip' });
+  };
 
   const download = (file) => {
     const url = URL.createObjectURL(file);
@@ -914,26 +1308,143 @@ dialog::backdrop { background: oklch(0% 0 0 / .4); backdrop-filter: blur(2px); }
     setTimeout(() => URL.revokeObjectURL(url), 60000);
   };
 
-  // 共有シート。使えなければダウンロード
-  const exportFile = async (text, name) => {
-    const file = new File([text], name, { type: 'text/plain' });
-    if (navigator.canShare?.({ files: [file] })) {
-      try { await navigator.share({ files: [file] }); return 'shared'; }
-      catch (e) { if (e.name === 'AbortError') return null; }
-    }
+  // 「送る」は共有シートを使わず直接ダウンロード（ファイルアプリ経由で Slack に共有する運用）
+  $('#sendBtn').onclick = async () => {
+    const to = S.segs.length, n = S.sendCount + 1;
+    const file = await buildFile(S.sentUpTo, to, n, `part${pad(n)}`);
+    if (!file) return toast('新しい内容はありません');
     download(file);
-    return 'downloaded';
+    S.sentUpTo = to; S.sendCount = n; flush(); renderAll(); scrollBottom();
+    toast(`パート${n}（${file.name.endsWith('.zip') ? '写真つき zip' : 'テキスト'}）を保存しました。ファイルアプリ > ダウンロード から共有してください`);
   };
 
-  // 「送る」は共有シートを使わず直接ダウンロード（ファイルアプリ経由で Slack に共有する運用）
-  $('#sendBtn').onclick = () => {
-    const to = S.segs.length, n = S.sendCount + 1;
-    const text = buildText(S.sentUpTo, to, n);
-    if (!text) return toast('新しい内容はありません');
-    download(new File([text], fileName(`part${pad(n)}`), { type: 'text/plain' }));
-    S.sentUpTo = to; S.sendCount = n; save(); renderAll(); scrollBottom();
-    toast(`パート${n} を保存しました。ファイルアプリ > ダウンロード から共有してください`);
+  // ---------- 全文ビュー（Apple Intelligence の作文ツール／リーダー要約用） ----------
+  const articleHTML = (sess) => {
+    const names = imageNames(sess);
+    const topicAt = new Map(sess.topics.map((t) => [t.from, t]));
+    let html = `<h1>${esc(titleOf(sess))}</h1><p class="meta">${esc(fmtDate(sess.startedAt || sess.createdAt))} ・ 音声認識の文字起こし（誤認識を含みます）</p>`;
+    if (sess.context?.trim()) html += `<blockquote>${esc(sess.context.trim())}</blockquote>`;
+    let para = [], paraTs = 0;
+    const flushPara = () => { if (para.length) html += `<p>${esc(para.join(' '))}</p>`; para = []; };
+    sess.segs.forEach((s, i) => {
+      const t = topicAt.get(i);
+      if (t) { flushPara(); html += `<h2>${esc(t.title)}<small>${fmt(t.ts0)}〜</small></h2>`; }
+      if (s.kind === 'note') { flushPara(); html += `<blockquote>メモ：${esc(s.text)}</blockquote>`; return; }
+      if (s.kind === 'image') { flushPara(); html += `<figure><img data-img="${s.img}" alt="${esc(s.text || '写真')}"><figcaption>${fmt(s.ts)} ${esc(names.get(s.img) || '')} ${esc(s.text || '')}</figcaption></figure>`; return; }
+      // 1分以上あいたら段落を分ける
+      if (para.length && s.ts - paraTs > 60000) flushPara();
+      para.push(s.text); paraTs = s.ts;
+    });
+    flushPara();
+    return html;
   };
+  $('#fullBtn').onclick = () => {
+    if (!S.segs.length) return toast('まだ内容がありません');
+    $('#fullArticle').innerHTML = articleHTML(S);
+    hydrate($('#fullArticle'));
+    $('#fullDlg').showModal();
+  };
+  $('#closeFull').onclick = () => $('#fullDlg').close();
+  $('#selectAll').onclick = () => {
+    const r = document.createRange(); r.selectNodeContents($('#fullArticle'));
+    const sel = getSelection(); sel.removeAllRanges(); sel.addRange(r);
+    toast('選択しました。選択範囲をタップして［作文ツール］を選んでください');
+  };
+  $('#openReader').onclick = async () => {
+    if (running && !confirm('別のタブを開くと、戻ってくるまで録音が一時的に止まります。開きますか？')) return;
+    await flush();
+    window.open(`reader.html?s=${encodeURIComponent(S.id)}`, '_blank');
+  };
+
+  // ---------- drawer（商談の履歴） ----------
+  let sessions = [];
+  const drawer = $('#drawer'), scrim = $('#scrim'), drList = $('#drList'), glide = $('#glide');
+  const openDrawer = async () => { await flush(); await renderDrawer(); drawer.classList.add('show'); scrim.classList.add('show'); };
+  const closeDrawer = () => { drawer.classList.remove('show'); scrim.classList.remove('show'); };
+  $('#drawerBtn').onclick = openDrawer;
+  $('#drawerClose').onclick = closeDrawer;
+  scrim.onclick = closeDrawer;
+  $('#drSearchBtn').onclick = () => { const s = $('#drSearch'); s.classList.toggle('show'); if (s.classList.contains('show')) s.focus(); else { s.value = ''; renderDrawer(); } };
+  $('#drSearch').addEventListener('input', () => renderDrawer(false));
+
+  const subtitleOf = (s) => {
+    const t = s.topics?.[s.topics.length - 1]?.title;
+    if (t) return `最新の話題：${t}`;
+    const first = s.segs.find((x) => x.text);
+    return first ? first.text : 'まだ発言がありません';
+  };
+  async function renderDrawer(reload = true) {
+    if (reload) sessions = (await DB.all('sessions').catch(() => [])).map(normalize);
+    // 開いている商談はメモリ上の最新状態を使う
+    sessions = sessions.filter((s) => s.id !== S.id).concat([S]).sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
+    const q = $('#drSearch').value.trim();
+    const list = q ? sessions.filter((s) => (titleOf(s) + s.context + s.segs.map((x) => x.text).join(' ')).includes(q)) : sessions;
+    drList.innerHTML = list.length ? list.map((s) => {
+      const photos = s.segs.filter((x) => x.kind === 'image').length;
+      const live = s.id === S.id && running;
+      return `<li data-id="${s.id}" class="${s.id === S.id ? 'active' : ''}">` +
+        `<span class="t">${live ? '<span class="live-dot"></span>' : ''}${esc(titleOf(s))}</span>` +
+        `<span class="s">${esc(clip(subtitleOf(s), 40))}</span>` +
+        `<span class="m mono">${esc(fmtDate(s.updatedAt || s.createdAt))} · ${s.segs.length}件${photos ? ` · 写真${photos}` : ''}</span>` +
+        `<button class="del" data-del="${s.id}" aria-label="この商談を削除">${TRASH_SVG}</button></li>`;
+    }).join('') : '<li class="none">見つかりませんでした</li>';
+    $('#drFoot').textContent = `${sessions.length}件の商談がこの端末内に保存されています`;
+    glide.style.opacity = 0;
+  }
+  // Sidebar Nav 風：指やポインタの位置にハイライトがすべるように付いていく
+  drList.addEventListener('pointerover', (e) => {
+    const li = e.target.closest('li[data-id]'); if (!li) return;
+    glide.style.transform = `translateY(${li.offsetTop}px)`; glide.style.height = `${li.offsetHeight}px`; glide.style.opacity = 1;
+  });
+  drList.addEventListener('pointerleave', () => { glide.style.opacity = 0; });
+  drList.addEventListener('click', async (e) => {
+    const del = e.target.closest('[data-del]');
+    if (del) return deleteSession(del.dataset.del);
+    const li = e.target.closest('li[data-id]'); if (!li) return;
+    if (li.dataset.id === S.id) return closeDrawer();
+    await switchTo(li.dataset.id);
+  });
+
+  // 状態は同期で切り替え、描画だけを View Transition に渡す（コールバックは非同期に実行されるため）
+  const loadInto = (sess) => {
+    S = normalize(sess);
+    P.current = S.id; savePrefs();
+    vt(renderSession);
+  };
+  const renderSession = () => {
+    clearImgUrls(); banner(''); setInterim('');
+    $('#recLabel').textContent = S.segs.length ? '録音再開' : '録音開始';
+    tick(); renderAll(); scrollBottom(); AI.render();
+  };
+  async function switchTo(id) {
+    if (running) { if (!confirm('録音を止めて、この商談に切り替えますか？')) return; stop(); }
+    await flush();
+    const sess = await DB.get('sessions', id);
+    if (!sess) return toast('商談が見つかりませんでした');
+    loadInto(sess); closeDrawer(); toast(`「${titleOf(S)}」を開きました`);
+  }
+  $('#newSessionBtn').onclick = async () => {
+    if (running) { if (!confirm('録音を止めて、新しい商談を始めますか？')) return; stop(); }
+    await flush();
+    const sess = fresh({ instr: S.instr });
+    await DB.put('sessions', sess);
+    loadInto(sess); closeDrawer(); toast('新しい商談を始めました');
+  };
+  async function deleteSession(id) {
+    const target = sessions.find((s) => s.id === id);
+    if (!target || !confirm(`「${titleOf(target)}」を端末から削除しますか？（写真も削除されます。元に戻せません）`)) return;
+    if (id === S.id && running) stop();
+    for (const im of await DB.imagesOf(id).catch(() => [])) await DB.del('images', im.id).catch(() => {});
+    await DB.del('sessions', id).catch(() => {});
+    if (id === S.id) {
+      clearTimeout(saveTimer); saveTimer = null;
+      const rest = sessions.filter((s) => s.id !== id);
+      const next = rest[0] || fresh({ instr: S.instr });
+      if (!rest.length) await DB.put('sessions', next);
+      loadInto(next);
+    }
+    await renderDrawer(); toast('商談を削除しました');
+  }
 
   // ---------- settings ----------
   const dlg = $('#dlg');
@@ -944,19 +1455,24 @@ dialog::backdrop { background: oklch(0% 0 0 / .4); backdrop-filter: blur(2px); }
     if (await isCached(P.model)) $('#modelInfo').textContent += ' · ダウンロード済み';
   };
   $('#menuBtn').onclick = () => {
+    $('#titleInput').value = S.title;
+    $('#titleInput').placeholder = titleOf({ ...S, title: '' });
     $('#contextInput').value = S.context;
     $('#instrInput').value = S.instr ?? DEFAULT_INSTR;
     $('#hlToggle').checked = P.hl;
+    $('#meterToggle').checked = P.meter;
     $('#aiToggle').checked = P.ai;
     modelSelect.value = P.model; updModelInfo();
     dlg.showModal();
   };
   $('#closeDlg').onclick = () => dlg.close();
   dlg.addEventListener('click', (e) => { if (e.target === dlg) dlg.close(); });
+  $('#titleInput').addEventListener('input', (e) => { S.title = e.target.value; save(); $('#sessionTitle').textContent = titleOf(S); });
   $('#contextInput').addEventListener('input', (e) => { S.context = e.target.value; save(); });
   $('#instrInput').addEventListener('input', (e) => { S.instr = e.target.value === DEFAULT_INSTR ? null : e.target.value; save(); });
   $('#resetInstr').onclick = (e) => { e.preventDefault(); S.instr = null; save(); $('#instrInput').value = DEFAULT_INSTR; toast('指示を既定に戻しました'); };
   $('#hlToggle').onchange = (e) => { P.hl = e.target.checked; savePrefs(); renderAll(); };
+  $('#meterToggle').onchange = (e) => { P.meter = e.target.checked; savePrefs(); if (!P.meter) Meter.stop(); else if (running) Meter.start(); };
   $('#aiToggle').onchange = (e) => { P.ai = e.target.checked; savePrefs(); AI.apply(); };
   modelSelect.onchange = () => { P.model = modelSelect.value; savePrefs(); updModelInfo(); AI.switchModel(); };
   $('#clearModel').onclick = async () => {
@@ -965,28 +1481,45 @@ dialog::backdrop { background: oklch(0% 0 0 / .4); backdrop-filter: blur(2px); }
     updModelInfo(); AI.switchModel(); toast('モデルを削除しました');
   };
   $('#shareAll').onclick = async () => {
-    const text = buildText(0, S.segs.length, 'all');
-    if (!text) return toast('内容がありません');
-    await exportFile(text, fileName('full'));
+    const file = await buildFile(0, S.segs.length, 'all', 'full');
+    if (!file) return toast('内容がありません');
+    if (navigator.canShare?.({ files: [file] })) {
+      try { await navigator.share({ files: [file] }); return; } catch (e) { if (e.name === 'AbortError') return; }
+    }
+    download(file);
   };
-  $('#downloadAll').onclick = () => {
-    const text = buildText(0, S.segs.length, 'all');
-    if (!text) return toast('内容がありません');
-    download(new File([text], fileName('full'), { type: 'text/plain' }));
-  };
-  $('#newSession').onclick = () => {
-    if (!confirm('現在の文字起こしを端末から削除して、新しい商談を始めますか？')) return;
-    if (running) stop();
-    S = fresh({ instr: S.instr });
-    save(); renderAll(); setInterim(''); AI.reset();
-    $('#recLabel').textContent = '録音開始'; tick();
-    dlg.close(); toast('新しい商談を開始できます');
+  $('#downloadAll').onclick = async () => {
+    const file = await buildFile(0, S.segs.length, 'all', 'full');
+    if (!file) return toast('内容がありません');
+    download(file);
   };
 
   // ---------- init ----------
-  if (!SR) banner('このブラウザは音声認識に対応していません。iPhone の Safari で開いてください。');
-  if (S.segs.length) $('#recLabel').textContent = '録音再開';
-  tick(); renderAll(); updWL(); AI.apply();
+  (async () => {
+    // ホーム画面から独立したアプリ画面で開かれた場合は、Safari で開き直すよう案内する
+    if (navigator.standalone || matchMedia('(display-mode: standalone)').matches) {
+      $('#standaloneNote').classList.add('show');
+      $('#openSafari').href = 'x-safari-' + location.href.split('#')[0];
+    }
+    if (!SR) banner('このブラウザは音声認識に対応していません。iPhone の Safari で開いてください。');
+    let list = [];
+    try { list = (await DB.all('sessions')).map(normalize); } catch { banner('この端末では保存領域（IndexedDB）を使えません。プライベートブラウズでないか確認してください。'); }
+    // 旧バージョン（localStorage に1商談だけ保存）からの引き継ぎ
+    try {
+      const legacy = JSON.parse(localStorage.getItem(LEGACY_KEY) || 'null');
+      if (legacy?.segs?.length) {
+        const sess = normalize({ ...fresh(), ...legacy, id: newId(), createdAt: legacy.startedAt || Date.now(), updatedAt: Date.now() });
+        await DB.put('sessions', sess); list.push(sess);
+      }
+      localStorage.removeItem(LEGACY_KEY);
+    } catch {}
+    list.sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
+    S = list.find((s) => s.id === P.current) || list[0] || fresh();
+    if (!list.length) await DB.put('sessions', S).catch(() => {});
+    P.current = S.id; savePrefs();
+    if (S.segs.length) $('#recLabel').textContent = '録音再開';
+    tick(); renderAll(); updWL(); AI.apply(); renderDrawer();
+  })();
 })();
 </script>
 </body>

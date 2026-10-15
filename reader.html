@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>商談の文字起こし | Live Scribe</title>
+<style>
+:root { --bg: #fafafa; --fg: #1f2329; --muted: #6b7280; --line: #e5e7eb; --accent: #2563eb; color-scheme: light; }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) { --bg: #1f2023; --fg: #ececf0; --muted: #9aa1ab; --line: #34363c; --accent: #6ea8ff; color-scheme: dark; }
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0; background: var(--bg); color: var(--fg);
+  font-family: -apple-system, BlinkMacSystemFont, "Hiragino Sans", "Noto Sans JP", sans-serif;
+  font-size: 17px; line-height: 1.9; -webkit-font-smoothing: antialiased;
+}
+article { max-width: 680px; margin: 0 auto; padding: calc(env(safe-area-inset-top) + 24px) 16px 64px; }
+h1 { font-size: 24px; line-height: 1.4; margin: 0 0 4px; }
+.meta { color: var(--muted); font-size: 13px; margin: 0 0 20px; }
+h2 { font-size: 18px; margin: 32px 0 6px; padding-top: 12px; border-top: 1px dashed var(--line); }
+h2 small { font-weight: 400; color: var(--muted); font-size: 13px; margin-left: 8px; }
+p { margin: 0 0 14px; }
+blockquote { margin: 0 0 14px; padding: 4px 12px; border-left: 3px solid var(--accent); color: var(--muted); }
+figure { margin: 8px 0 16px; }
+figure img { max-width: 100%; border-radius: 10px; }
+figcaption { font-size: 13px; color: var(--muted); }
+.note { font-size: 13px; color: var(--muted); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; margin-bottom: 24px; }
+</style>
+</head>
+<body>
+<article id="article">
+  <p class="meta">読み込み中…</p>
+</article>
+<script>
+// Safari のリーダー表示（Apple Intelligence の要約）で読みやすいように、商談を記事の形で出すページ。
+// データは同じ端末のブラウザ内（IndexedDB）から読むだけで、どこにも送らない。
+(async () => {
+  const pad = (n) => String(n).padStart(2, '0');
+  const fmt = (ts) => { const d = new Date(ts); return `${pad(d.getHours())}:${pad(d.getMinutes())}`; };
+  const fmtDate = (ts) => { const d = new Date(ts); return `${d.getFullYear()}/${d.getMonth() + 1}/${d.getDate()} ${fmt(ts)}`; };
+  const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  const el = document.getElementById('article');
+  const open = () => new Promise((resolve, reject) => {
+    const r = indexedDB.open('livescribe', 1);
+    r.onupgradeneeded = () => {
+      const db = r.result;
+      db.createObjectStore('sessions', { keyPath: 'id' });
+      db.createObjectStore('images', { keyPath: 'id' }).createIndex('session', 'session');
+    };
+    r.onsuccess = () => resolve(r.result);
+    r.onerror = () => reject(r.error);
+  });
+  const get = (db, store, key) => new Promise((resolve, reject) => {
+    const q = db.transaction(store).objectStore(store).get(key);
+    q.onsuccess = () => resolve(q.result); q.onerror = () => reject(q.error);
+  });
+  try {
+    const id = new URLSearchParams(location.search).get('s');
+    const db = await open();
+    const s = id && await get(db, 'sessions', id);
+    if (!s) { el.innerHTML = '<h1>商談が見つかりません</h1><p class="meta">この端末のブラウザに保存された商談だけを表示できます。</p>'; return; }
+    const title = s.title?.trim() || `${fmtDate(s.startedAt || s.createdAt)} の商談`;
+    document.title = `${title} | Live Scribe`;
+    const topicAt = new Map((s.topics || []).map((t) => [t.from, t]));
+    let html = `<h1>${esc(title)}</h1><p class="meta">${esc(fmtDate(s.startedAt || s.createdAt))} ・ 音声認識の文字起こし（誤認識を含みます）</p>`;
+    html += '<div class="note">Safari のアドレスバーの「リーダー表示」を開くと、Apple Intelligence の「要約」を使えます（対応機種・設定が必要です）。</div>';
+    if (s.context?.trim()) html += `<blockquote>${esc(s.context.trim())}</blockquote>`;
+    let para = [], paraTs = 0;
+    const flush = () => { if (para.length) html += `<p>${esc(para.join(' '))}</p>`; para = []; };
+    const imgs = [];
+    s.segs.forEach((seg, i) => {
+      const t = topicAt.get(i);
+      if (t) { flush(); html += `<h2>${esc(t.title)}<small>${fmt(t.ts0)}〜</small></h2>`; }
+      if (seg.kind === 'note') { flush(); html += `<blockquote>メモ：${esc(seg.text)}</blockquote>`; return; }
+      if (seg.kind === 'image') { flush(); imgs.push(seg.img); html += `<figure><img data-img="${seg.img}" alt="${esc(seg.text || '写真')}"><figcaption>${fmt(seg.ts)} ${esc(seg.text || '')}</figcaption></figure>`; return; }
+      if (para.length && seg.ts - paraTs > 60000) flush();
+      para.push(seg.text); paraTs = seg.ts;
+    });
+    flush();
+    el.innerHTML = html;
+    for (const imgId of imgs) {
+      const rec = await get(db, 'images', imgId);
+      const im = el.querySelector(`img[data-img="${imgId}"]`);
+      if (rec && im) im.src = URL.createObjectURL(rec.blob);
+    }
+  } catch (e) {
+    el.innerHTML = `<h1>読み込めませんでした</h1><p class="meta">${esc(e.message || e)}</p>`;
+  }
+})();
+</script>
+</body>
+</html>
