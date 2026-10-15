@@ -160,21 +160,27 @@ mark.num   { background: linear-gradient(transparent 50%, var(--hl-num) 50%); fo
 .ai-head .title { font-weight: 600; font-size: 13px; }
 .ai-head .model { font-size: 11px; color: var(--ink-3); }
 #aiStatus { font-size: 12px; color: var(--ink-2); margin-left: auto; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-#aiNow { height: 28px; padding: 0 10px; border-radius: 999px; font-size: 12px; font-weight: 500; box-shadow: var(--shadow-btn); flex: none; }
-#aiNow:disabled { opacity: .4; }
 .ai-progress { height: 2px; background: var(--line); }
 .ai-progress i { display: block; height: 100%; width: 0; background: var(--accent); transition: width .3s; }
 #aiBody { overflow-y: auto; padding: 4px 12px 10px; -webkit-overflow-scrolling: touch; }
 .ai-empty { color: var(--ink-3); font-size: 13px; padding: 14px 0 6px; line-height: 1.7; }
 .ai-empty button { color: var(--accent); font-weight: 600; }
-.chunk { padding: 8px 0; }
-.chunk + .chunk { border-top: 1px dashed var(--line-strong); }
-.chunk .range { font-size: 11px; color: var(--ink-3); margin-bottom: 3px; }
-.chunk ul { margin: 0; padding: 0; list-style: none; }
-.chunk li { position: relative; padding-left: 14px; font-size: 14px; line-height: 1.65; }
-.chunk li::before { content: ""; position: absolute; left: 3px; top: .72em; width: 4px; height: 4px; border-radius: 50%; background: var(--ink-3); }
-.chunk.pending li, .chunk.pending .raw { color: var(--ink-2); }
-.chunk .raw { font-size: 14px; line-height: 1.65; white-space: pre-wrap; }
+.grp { padding: 8px 0 4px; }
+.grp + .grp { border-top: 1px dashed var(--line-strong); }
+.grp-h { display: flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600; color: var(--ink-2); margin-bottom: 2px; }
+.grp-h i { width: 12px; height: 8px; border-radius: 2px; }
+.grp.issue .grp-h i { background: var(--hl-issue); }
+.grp.decision .grp-h i { background: var(--hl-req); }
+.grp.action .grp-h i { background: var(--hl-todo); }
+.grp-h .n { margin-left: 2px; font-size: 11px; font-weight: 500; color: var(--ink-3); }
+.grp ul { margin: 0; padding: 0; list-style: none; }
+.grp li { display: grid; grid-template-columns: 40px 1fr; padding: 3px 0; font-size: 14px; line-height: 1.6; cursor: pointer; }
+.grp li .time { font-size: 11px; color: var(--ink-3); padding-top: 3px; }
+.grp li.raw .t { color: var(--ink-2); }
+.grp li.busy .t { background: linear-gradient(90deg, var(--ink-3) 0 35%, var(--ink) 50%, var(--ink-3) 65% 100%); background-size: 250% 100%; -webkit-background-clip: text; background-clip: text; color: transparent; animation: shim 2.2s linear infinite; }
+.grp .none { font-size: 12px; color: var(--ink-3); padding: 2px 0 4px 40px; }
+.seg.flash { animation: flash 1.4s ease-out; }
+@keyframes flash { 0%, 40% { background: var(--accent-tint); } }
 
 /* ---------- dock (prompt bar) ---------- */
 footer { padding: 0 12px calc(env(safe-area-inset-bottom) + 10px); }
@@ -308,10 +314,9 @@ dialog::backdrop { background: oklch(0% 0 0 / .4); backdrop-filter: blur(2px); }
       <i style="--d:7"></i><i style="--d:8"></i><i style="--d:3"></i>
       <i style="--d:6"></i><i style="--d:5"></i><i style="--d:4"></i>
     </span>
-    <span class="title">AI要約</span>
+    <span class="title">要点</span>
     <span class="model" id="aiModelName"></span>
     <span id="aiStatus"></span>
-    <button id="aiNow">今すぐ要約</button>
   </div>
   <div class="ai-progress"><i id="aiBar"></i></div>
   <div id="aiBody"></div>
@@ -361,10 +366,10 @@ dialog::backdrop { background: oklch(0% 0 0 / .4); backdrop-filter: blur(2px); }
       </label>
     </div>
 
-    <div class="section-title">ローカル LLM 要約（実験）</div>
+    <div class="section-title">要点パネル（実験）</div>
     <div class="menu">
       <label class="row">
-        <span class="grow">画面下に AI 要約を表示<small>端末内のモデルで、話した内容を数分ごとに箇条書きにします。文字起こしは端末の外に出ません。</small></span>
+        <span class="grow">画面下に要点パネルを表示<small>発言を「課題・要件/決定事項・アクション」に分類して一覧にします。ローカル LLM を読み込むと、各項目を短く言い換えます（数字が変わる言い換えは採用しません）。文字起こしは端末の外に出ません。</small></span>
         <span class="switch"><input type="checkbox" id="aiToggle"><span></span></span>
       </label>
       <div class="row">
@@ -422,12 +427,12 @@ dialog::backdrop { background: oklch(0% 0 0 / .4); backdrop-filter: blur(2px); }
   ].join('\n');
   const fresh = (keep = {}) => ({
     segs: [], sentUpTo: 0, sendCount: 0, startedAt: null, context: keep.context || '', instr: keep.instr ?? null,
-    sums: [], sumUpTo: 0,
+    items: [], itemsUpTo: 0,
   });
   let S;
   try { S = JSON.parse(localStorage.getItem(KEY)) || fresh(); } catch { S = fresh(); }
   S.context ??= S.prefix || ''; S.instr ??= null; delete S.prefix;
-  S.sums ??= []; S.sumUpTo ??= 0;
+  S.items ??= []; S.itemsUpTo ??= 0; delete S.sums; delete S.sumUpTo;
   // 端末ごとの表示設定（商談データとは別に保持）
   const PKEY = 'livescribe.prefs';
   let P;
@@ -665,44 +670,82 @@ dialog::backdrop { background: oklch(0% 0 0 / .4); backdrop-filter: blur(2px); }
     } catch { return false; }
   };
 
+  // 要点パネル：発言をルールで「課題／要件・決定事項／アクション」に分類し（350M のモデルは分類が苦手なため）、
+  // ローカル LLM には各項目を短く言い換えることだけを任せる。数字が変わった言い換えは採用せず原文を出す。
+  const GROUPS = [
+    ['issue', '課題'],
+    ['decision', '要件・決定事項'],
+    ['action', 'アクション'],
+  ];
+  const classify = (seg) => {
+    const hit = HL_RULES.find(([, re]) => re.test(seg.text));
+    if (hit) return { cat: { todo: 'action', issue: 'issue', req: 'decision' }[hit[0]], rule: hit[0] };
+    if (seg.text.search(NUM_RE) >= 0 || seg.kind === 'note') return { cat: 'decision', rule: null };
+    return null;
+  };
+  // 意味を変えない範囲の機械的な整形（文頭のつなぎ言葉と文末の「〜んですよね」を落とす）
+  const tidy = (s) => s
+    .replace(/^(\s*(あと|では|じゃあ|まあ|えー|えっと|あの|そうですね|なるほど|ちなみに|今は)[、\s]*)+/, '')
+    .replace(/(んですよね|ですよね)$/, '').trim() || s;
+  const toHalf = (s) => s.replace(/[０-９]/g, (c) => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
+  const digitsOf = (s) => (toHalf(s).match(/[0-9]+/g) || []).sort().join(',');
+  const acceptShort = (src, out, rule) => {
+    let t = (out.split('\n').map((l) => l.trim()).find(Boolean) || '');
+    t = t.replace(/^([-・*•]|\d+[.)])\s*/, '').replace(/\*\*/g, '').replace(/[。.]$/, '').trim();
+    if (!t || t.length >= src.length || t.length > 40) return src;
+    if (digitsOf(t) !== digitsOf(src)) return src; // 数字の書き換え（例：2日→3日）を防ぐ
+    // 分類の根拠になった言い回し（「必須」「止まる」など）が消えたら意味が変わった可能性が高い
+    const re = rule && HL_RULES.find(([k]) => k === rule)[1];
+    if (re && !re.test(t)) return src;
+    return t;
+  };
+
   const AI = (() => {
-    let worker = null, state = 'off', pending = null, lastRunAt = 0;
+    let worker = null, state = 'off', busyItem = null, cached = false;
     const panel = $('#aiPanel'), body = $('#aiBody');
-    const MIN_CHARS = 350, IDLE_MS = 180000, MIN_IDLE_CHARS = 80, MAX_INPUT = 1500;
+    const SETTLE_MS = 3000; // 確定直後の発言は iOS の重複吸収で書き換わることがあるので少し待つ
+    const SHORT_ENOUGH = 22;
 
     const setStatus = (text, { busy = false, progress = null } = {}) => {
       $('#aiStatus').textContent = text;
       $('#aiStatus').classList.toggle('shimmer', busy);
       $('#aiPix').classList.toggle('busy', busy);
       $('#aiBar').style.width = progress == null ? '0' : `${Math.round(progress * 100)}%`;
-      $('#aiNow').disabled = state !== 'ready';
     };
     const mb = (n) => `${Math.round(n / 1e6)}MB`;
 
-    const bullets = (text) => {
-      const t = text.replace(/<think>[\s\S]*?(<\/think>|$)/g, '').trim();
-      const items = t.split('\n').map((l) => l.trim()).filter(Boolean)
-        .map((l) => l.replace(/^([・\-*•●]|\d+[.)．、])\s*/, '').replace(/\*\*/g, '').replace(/[。.]$/, '').trim())
-        .filter((l) => l && !/^[・\s]+$/.test(l) && !/^(出典|以上|要点|まとめ)[:：]?/.test(l));
-      return items.length ? items.slice(0, 6) : null;
+    const extract = () => {
+      let changed = false;
+      while (S.itemsUpTo < S.segs.length) {
+        const seg = S.segs[S.itemsUpTo];
+        if (seg.kind !== 'note' && Date.now() - seg.ts < SETTLE_MS && S.itemsUpTo === S.segs.length - 1) break;
+        const c = classify(seg);
+        if (c) {
+          const src = seg.kind === 'note' ? seg.text : tidy(seg.text);
+          const short = seg.kind === 'note' || src.length <= SHORT_ENOUGH ? src : null;
+          S.items.push({ seg: S.itemsUpTo, ts: seg.ts, cat: c.cat, rule: c.rule, src, short });
+        }
+        S.itemsUpTo++; changed = true;
+      }
+      if (changed) { save(); render(); }
     };
-    const chunkHTML = (c, isPending) => {
-      const items = bullets(c.text);
-      const inner = items ? `<ul>${items.map((x) => `<li>${esc(x)}</li>`).join('')}</ul>` : `<div class="raw">${esc(c.text || '…')}</div>`;
-      return `<div class="chunk${isPending ? ' pending' : ''}"><div class="range mono">${fmt(c.ts0)}–${fmt(c.ts1)}${isPending ? ' · 生成中' : ''}</div>${inner}</div>`;
-    };
+
     const render = () => {
       const keep = body.scrollTop + body.clientHeight >= body.scrollHeight - 30;
-      let html = S.sums.map((c) => chunkHTML(c, false)).join('');
-      if (pending) html += chunkHTML(pending, true);
+      let html = '';
       if (state === 'idle' || state === 'crashed') {
-        // 要約が既にあっても、読み込み操作は先頭に出す
         const msg = state === 'crashed'
           ? '前回、モデルの読み込み中にページが再読み込みされました。<b>メモリ不足</b>の可能性が高いので、設定でより軽いモデルを選んでから読み込んでください。'
-          : cached ? 'モデルはダウンロード済みです。' : `モデルは未ダウンロードです（${esc(MODELS[P.model].size.split('・')[0])}）。`;
-        html = `<div class="ai-empty">${msg}<br><button id="aiLoad">${esc(MODELS[P.model].label)} を読み込む</button></div>` + html;
-      } else if (!html) {
-        html = '<div class="ai-empty">話した内容がある程度たまると、ここに要点の箇条書きが出ます。</div>';
+          : (cached ? 'モデルはダウンロード済みです。' : `モデルは未ダウンロードです（${esc(MODELS[P.model].size.split('・')[0])}）。`) + '読み込むと各項目を短く言い換えます。';
+        html += `<div class="ai-empty">${msg}<br><button id="aiLoad">${esc(MODELS[P.model].label)} を読み込む</button></div>`;
+      }
+      for (const [cat, label] of GROUPS) {
+        const items = S.items.filter((it) => it.cat === cat);
+        html += `<div class="grp ${cat}"><div class="grp-h"><i></i>${label}<span class="n mono">${items.length}</span></div>`;
+        html += items.length
+          ? `<ul>${items.map((it) => `<li data-seg="${it.seg}" class="${it.short == null ? 'raw' : ''}${it === busyItem ? ' busy' : ''}"><span class="time mono">${fmt(it.ts)}</span><span class="t">${esc(it.short ?? it.src)}</span></li>`).join('')}</ul>`
+          : '<div class="none">まだありません</div>';
+        html += '</div>';
       }
       body.innerHTML = html;
       $('#aiLoad')?.addEventListener('click', load);
@@ -710,26 +753,27 @@ dialog::backdrop { background: oklch(0% 0 0 / .4); backdrop-filter: blur(2px); }
       else if (keep) body.scrollTop = body.scrollHeight;
     };
 
-    const pendingSegs = () => S.segs.slice(S.sumUpTo);
-    const pendingChars = () => pendingSegs().reduce((n, s) => n + s.text.length, 0);
+    // 項目をタップすると、元の発言までスクロールして光らせる
+    body.addEventListener('click', (e) => {
+      const li = e.target.closest('li[data-seg]'); if (!li) return;
+      const el = segsEl.querySelector(`.seg[data-i="${li.dataset.seg}"]`); if (!el) return;
+      el.scrollIntoView({ block: 'center', behavior: 'smooth' });
+      el.classList.remove('flash'); void el.offsetWidth; el.classList.add('flash');
+    });
 
-    const run = (force = false) => {
-      if (state !== 'ready' || pending) return;
-      const segs = pendingSegs();
-      const chars = pendingChars();
-      const idle = Date.now() - lastRunAt >= IDLE_MS;
-      if (!segs.length || !(force || chars >= MIN_CHARS || (idle && chars >= MIN_IDLE_CHARS))) return;
-      let text = segs.map((s) => (s.kind === 'note' ? `（メモ）${s.text}` : s.text)).join('\n');
-      if (text.length > MAX_INPUT) text = text.slice(-MAX_INPUT);
-      const ctx = S.context.trim() ? `商談の前提：${S.context.trim()}\n\n` : '';
-      pending = { from: S.sumUpTo, to: S.segs.length, ts0: segs[0].ts, ts1: segs[segs.length - 1].ts, text: '' };
-      lastRunAt = Date.now();
-      state = 'busy'; setStatus('要約中', { busy: true }); render();
+    const next = () => {
+      extract();
+      if (state !== 'ready' || busyItem) return;
+      const it = S.items.find((x) => x.short == null);
+      if (!it) { setStatus('待機中'); return; }
+      busyItem = it; state = 'busy';
+      setStatus(`言い換え中（残り ${S.items.filter((x) => x.short == null).length} 件）`, { busy: true });
+      render();
       worker.postMessage({
-        type: 'run',
-        // 小さいモデルは書式の細かい指定に引きずられて崩れやすいので、指示は短く保つ
+        type: 'run', maxTokens: 48,
         messages: [
-          { role: 'user', content: `${ctx}次の商談の会話の要点を、短い箇条書きで3〜5個書いてください。会話に出てこないことは書かないでください。\n\n${text}` },
+          { role: 'system', content: 'Rewrite the Japanese sentence as a much shorter Japanese noun phrase (under 25 characters), keeping the meaning and every number. Output only the phrase.' },
+          { role: 'user', content: it.src },
         ],
       });
     };
@@ -742,22 +786,20 @@ dialog::backdrop { background: oklch(0% 0 0 / .4); backdrop-filter: blur(2px); }
       } else if (data.type === 'ready') {
         state = 'ready'; delete P.loading; savePrefs();
         navigator.storage?.persist?.().catch(() => {});
-        setStatus('待機中'); render(); run();
-      } else if (data.type === 'token' && pending) {
-        pending.text = data.text; render();
-      } else if (data.type === 'done' && pending) {
-        S.sums.push({ ...pending, text: data.text.replace(/<think>[\s\S]*?<\/think>/g, '').trim() });
-        S.sumUpTo = pending.to; pending = null; save();
-        state = 'ready'; setStatus('待機中'); render();
+        render(); next();
+      } else if (data.type === 'done' && busyItem) {
+        busyItem.short = acceptShort(busyItem.src, data.text, busyItem.rule);
+        busyItem = null; state = 'ready'; save(); render(); next();
       } else if (data.type === 'error') {
         fail(data.message);
       }
     };
     const fail = (msg) => {
-      pending = null; state = 'error'; delete P.loading; savePrefs();
+      busyItem = null; state = 'error'; delete P.loading; savePrefs();
       worker?.terminate(); worker = null;
       setStatus('エラー');
-      body.innerHTML = `<div class="ai-empty">モデルを動かせませんでした（${esc(String(msg).slice(0, 160))}）。<br>メモリ不足の可能性があります。軽いモデルに切り替えるか、<button id="aiRetry">再試行</button></div>`;
+      render();
+      body.insertAdjacentHTML('afterbegin', `<div class="ai-empty">モデルを動かせませんでした（${esc(String(msg).slice(0, 160))}）。分類は引き続き表示します。<br><button id="aiRetry">再試行</button></div>`);
       $('#aiRetry').onclick = load;
     };
 
@@ -777,11 +819,11 @@ dialog::backdrop { background: oklch(0% 0 0 / .4); backdrop-filter: blur(2px); }
       worker.postMessage({ type: 'load', id: MODELS[P.model].id });
     }
 
-    let cached = false;
     const apply = async () => {
       panel.classList.toggle('show', P.ai);
       $('#aiModelName').textContent = MODELS[P.model].label;
-      if (!P.ai) { worker?.terminate(); worker = null; pending = null; state = 'off'; return; }
+      if (!P.ai) { worker?.terminate(); worker = null; busyItem = null; state = 'off'; return; }
+      extract(); render();
       if (state !== 'off' && state !== 'error') return;
       cached = await isCached(P.model);
       if (P.loading) {
@@ -791,12 +833,11 @@ dialog::backdrop { background: oklch(0% 0 0 / .4); backdrop-filter: blur(2px); }
       } else if (cached) load();
       else { state = 'idle'; setStatus('未読み込み'); render(); }
     };
-    const switchModel = () => { worker?.terminate(); worker = null; pending = null; state = 'off'; apply(); };
-    $('#aiNow').onclick = () => {
-      if (!pendingSegs().length) return toast('新しい発言がまだありません');
-      run(true);
+    const switchModel = () => { worker?.terminate(); worker = null; busyItem = null; state = 'off'; apply(); };
+    const reset = () => {
+      if (state === 'busy') { worker?.terminate(); worker = null; busyItem = null; state = 'off'; apply(); } else render();
     };
-    return { apply, switchModel, render, maybeRun: () => run(false), reset: () => { pending = null; if (state === 'busy') { worker?.terminate(); worker = null; state = 'off'; apply(); } else render(); } };
+    return { apply, switchModel, render, maybeRun: () => { if (P.ai) next(); }, reset };
   })();
 
   // ---------- export (ファイルとして共有 / ダウンロード) ----------

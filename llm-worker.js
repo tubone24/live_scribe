@@ -29,8 +29,8 @@ self.onmessage = async ({ data }) => {
         skip_prompt: true, skip_special_tokens: true,
         callback_function: (t) => { text += t; postMessage({ type: 'token', text }); },
       });
-      await model.generate({ ...inputs, max_new_tokens: 200, do_sample: false, streamer });
-      postMessage({ type: 'done', text });
+      await model.generate({ ...inputs, max_new_tokens: data.maxTokens ?? 200, do_sample: false, streamer });
+      postMessage({ type: 'done', id: data.id, text });
     }
   } catch (e) {
     postMessage({ type: 'error', message: String((e && e.message) || e) });
