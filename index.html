@@ -17,6 +17,8 @@
   --orange: oklch(68.9% .179 50); --orange-tint: oklch(96.4% .021 68);
   --red: oklch(62.1% .192 23); --red-tint: oklch(95.6% .017 17);
   --tip-bg: oklch(27.2% .008 264); --tip-fg: oklch(97.6% .002 248);
+  --hl-req: oklch(91% .16 100 / .7); --hl-issue: oklch(86% .1 5 / .65);
+  --hl-todo: oklch(88% .13 155 / .65); --hl-num: oklch(86% .08 245 / .7);
   --shadow-btn: 0 0 0 1px var(--line-strong), 0 1px 2px oklch(0% 0 0 / .05);
   --shadow-card: 0 0 0 1px var(--line), 0 1px 2px oklch(0% 0 0 / .04), 0 4px 16px oklch(0% 0 0 / .06);
   --shadow-overlay: 0 0 0 1px var(--line), 0 12px 40px oklch(0% 0 0 / .18);
@@ -33,6 +35,8 @@
     --orange: oklch(74.6% .156 56); --orange-tint: oklch(74.6% .156 56 / .14);
     --red: oklch(66.6% .18 21); --red-tint: oklch(66.6% .18 21 / .14);
     --tip-bg: oklch(18.2% .004 264); --tip-fg: oklch(96.4% .002 248);
+    --hl-req: oklch(80% .15 100 / .38); --hl-issue: oklch(70% .15 5 / .4);
+    --hl-todo: oklch(72% .15 155 / .38); --hl-num: oklch(68% .12 245 / .45);
     --shadow-btn: 0 0 0 1px oklch(100% 0 0 / .1), 0 1px 2px oklch(0% 0 0 / .3);
     --shadow-card: 0 0 0 1px oklch(100% 0 0 / .11), 0 1px 2px oklch(0% 0 0 / .2), 0 4px 16px oklch(0% 0 0 / .25);
     --shadow-overlay: 0 0 0 1px oklch(100% 0 0 / .15), 0 12px 40px oklch(0% 0 0 / .4);
@@ -61,7 +65,7 @@ header {
 .pix { display: grid; grid-template-columns: repeat(3, 3px); gap: 1.5px; color: var(--ink-3); }
 .pix i { width: 3px; height: 3px; border-radius: .5px; background: currentColor; opacity: .35; }
 .live .pix { color: var(--red); }
-.live .pix i { animation: pix 1.1s infinite; animation-delay: calc(var(--d) * 85ms); }
+.live .pix i, .pix.busy i { animation: pix 1.1s infinite; animation-delay: calc(var(--d) * 85ms); }
 @keyframes pix { 0%, 100% { opacity: .2; } 35% { opacity: 1; } }
 #stateLabel { font-weight: 500; color: var(--ink-2); }
 #elapsed { font-size: 12px; color: var(--ink-3); }
@@ -86,14 +90,20 @@ header {
 #menuBtn { margin-left: auto; }
 #wl:not(:empty) + #menuBtn { margin-left: 0; }
 
+/* ---------- highlighter legend ---------- */
+#legend { display: flex; gap: 12px; padding: 7px 16px; font-size: 11px; color: var(--ink-2); border-bottom: 1px dashed var(--line-strong); }
+#legend.off { display: none; }
+#legend span { display: inline-flex; align-items: center; gap: 5px; }
+#legend i { width: 14px; height: 8px; border-radius: 2px; }
+
 /* ---------- transcript ---------- */
-main { flex: 1; overflow-y: auto; padding: 8px 16px 24px; -webkit-overflow-scrolling: touch; }
+main { flex: 1; min-height: 0; overflow-y: auto; padding: 8px 16px 0; -webkit-overflow-scrolling: touch; }
 #banner {
   display: none; margin: 8px 0; padding: 10px 12px; border-radius: 10px;
   background: var(--orange-tint); color: var(--orange); font-size: 13px; line-height: 1.6;
 }
 #banner.show { display: block; }
-.empty { margin-top: 26vh; display: flex; flex-direction: column; align-items: center; gap: 14px; color: var(--ink-3); text-align: center; line-height: 1.7; }
+.empty { margin-top: 22vh; display: flex; flex-direction: column; align-items: center; gap: 14px; color: var(--ink-3); text-align: center; line-height: 1.7; }
 .empty .pix { grid-template-columns: repeat(3, 5px); gap: 2.5px; }
 .empty .pix i { width: 5px; height: 5px; border-radius: 1px; }
 .empty b { color: var(--ink-2); font-weight: 500; }
@@ -115,6 +125,11 @@ main { flex: 1; overflow-y: auto; padding: 8px 16px 24px; -webkit-overflow-scrol
   vertical-align: 2px;
 }
 .seg.note .txt { color: var(--ink); font-weight: 500; }
+mark { color: inherit; background: none; padding: 0 1px; border-radius: 2px; -webkit-box-decoration-break: clone; box-decoration-break: clone; }
+mark.req   { background: linear-gradient(transparent 50%, var(--hl-req) 50%); }
+mark.issue { background: linear-gradient(transparent 50%, var(--hl-issue) 50%); }
+mark.todo  { background: linear-gradient(transparent 50%, var(--hl-todo) 50%); }
+mark.num   { background: linear-gradient(transparent 50%, var(--hl-num) 50%); font-weight: 600; }
 #interim {
   display: grid; grid-template-columns: 44px 1fr; font-size: 16.5px; line-height: 1.75; padding: 7px 0;
 }
@@ -126,13 +141,40 @@ main { flex: 1; overflow-y: auto; padding: 8px 16px 24px; -webkit-overflow-scrol
   display: inline-flex; align-items: center; gap: 5px; height: 22px; padding: 0 9px; border-radius: 999px;
   background: var(--green-tint); color: var(--green); font-size: 11px; font-weight: 600;
 }
-
+.tb-wrap { position: sticky; bottom: 10px; display: flex; justify-content: center; pointer-events: none; height: 0; overflow: visible; }
 #toBottom {
-  position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(env(safe-area-inset-bottom) + 136px);
+  pointer-events: auto; transform: translateY(-40px);
   display: none; align-items: center; gap: 4px; height: 30px; padding: 0 12px; border-radius: 999px;
   background: var(--surface); color: var(--ink-2); font-size: 12px; font-weight: 500; box-shadow: var(--shadow-card);
 }
 #toBottom.show { display: inline-flex; }
+.spacer { height: 16px; }
+
+/* ---------- AI summary panel ---------- */
+#aiPanel {
+  display: none; flex: none; margin: 0 12px 8px; max-height: 38dvh; min-height: 96px;
+  flex-direction: column; background: var(--surface); border-radius: 16px; box-shadow: var(--shadow-card); overflow: hidden;
+}
+#aiPanel.show { display: flex; }
+.ai-head { display: flex; align-items: center; gap: 8px; padding: 9px 8px 9px 12px; border-bottom: 1px solid var(--line); }
+.ai-head .title { font-weight: 600; font-size: 13px; }
+.ai-head .model { font-size: 11px; color: var(--ink-3); }
+#aiStatus { font-size: 12px; color: var(--ink-2); margin-left: auto; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#aiNow { height: 28px; padding: 0 10px; border-radius: 999px; font-size: 12px; font-weight: 500; box-shadow: var(--shadow-btn); flex: none; }
+#aiNow:disabled { opacity: .4; }
+.ai-progress { height: 2px; background: var(--line); }
+.ai-progress i { display: block; height: 100%; width: 0; background: var(--accent); transition: width .3s; }
+#aiBody { overflow-y: auto; padding: 4px 12px 10px; -webkit-overflow-scrolling: touch; }
+.ai-empty { color: var(--ink-3); font-size: 13px; padding: 14px 0 6px; line-height: 1.7; }
+.ai-empty button { color: var(--accent); font-weight: 600; }
+.chunk { padding: 8px 0; }
+.chunk + .chunk { border-top: 1px dashed var(--line-strong); }
+.chunk .range { font-size: 11px; color: var(--ink-3); margin-bottom: 3px; }
+.chunk ul { margin: 0; padding: 0; list-style: none; }
+.chunk li { position: relative; padding-left: 14px; font-size: 14px; line-height: 1.65; }
+.chunk li::before { content: ""; position: absolute; left: 3px; top: .72em; width: 4px; height: 4px; border-radius: 50%; background: var(--ink-3); }
+.chunk.pending li, .chunk.pending .raw { color: var(--ink-2); }
+.chunk .raw { font-size: 14px; line-height: 1.65; white-space: pre-wrap; }
 
 /* ---------- dock (prompt bar) ---------- */
 footer { padding: 0 12px calc(env(safe-area-inset-bottom) + 10px); }
@@ -195,13 +237,26 @@ dialog::backdrop { background: oklch(0% 0 0 / .4); backdrop-filter: blur(2px); }
   box-shadow: inset 0 1px 2px oklch(0% 0 0 / .08); outline: 0;
 }
 .menu { margin-top: 14px; border-radius: 14px; box-shadow: 0 0 0 1px var(--line); overflow: hidden; }
-.menu button {
+.menu > button, .menu > .row {
   width: 100%; display: flex; align-items: center; gap: 10px; padding: 13px 14px; text-align: left; font-size: 14px;
 }
-.menu button + button { border-top: 1px solid var(--line); }
-.menu button:active { background: var(--hover); }
-.menu button svg { color: var(--ink-2); }
+.menu > * + * { border-top: 1px solid var(--line); }
+.menu > button:active { background: var(--hover); }
+.menu svg { color: var(--ink-2); }
 .menu .danger, .menu .danger svg { color: var(--red); }
+.menu .row .grow { flex: 1; min-width: 0; }
+.menu .row small { display: block; color: var(--ink-3); font-size: 12px; margin-top: 2px; line-height: 1.5; }
+.switch { position: relative; width: 44px; height: 26px; flex: none; }
+.switch input { position: absolute; inset: 0; opacity: 0; margin: 0; cursor: pointer; z-index: 1; }
+.switch span { position: absolute; inset: 0; border-radius: 999px; background: var(--line-strong); transition: background .2s; }
+.switch span::after { content: ""; position: absolute; left: 3px; top: 3px; width: 20px; height: 20px; border-radius: 50%; background: #fff; box-shadow: 0 1px 2px oklch(0% 0 0 / .3); transition: transform .2s; }
+.switch input:checked + span { background: var(--green); }
+.switch input:checked + span::after { transform: translateX(18px); }
+#modelSelect {
+  font: inherit; font-size: 14px; color: var(--ink); background: var(--field); border: 0; border-radius: 10px;
+  padding: 8px 10px; max-width: 100%;
+}
+.section-title { font-size: 12px; color: var(--ink-2); margin: 18px 2px 0; font-weight: 600; }
 .hint { font-size: 12px; color: var(--ink-3); margin: 14px 2px 0; line-height: 1.7; }
 
 @media (prefers-reduced-motion: reduce) {
@@ -223,6 +278,12 @@ dialog::backdrop { background: oklch(0% 0 0 / .4); backdrop-filter: blur(2px); }
     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 7h10M18 7h2M4 17h4M12 17h8"/><circle cx="16" cy="7" r="2"/><circle cx="10" cy="17" r="2"/></svg>
   </button>
 </header>
+<div id="legend" aria-label="蛍光ペンの凡例">
+  <span><i style="background:var(--hl-req)"></i>要望</span>
+  <span><i style="background:var(--hl-issue)"></i>課題</span>
+  <span><i style="background:var(--hl-todo)"></i>宿題・次の一手</span>
+  <span><i style="background:var(--hl-num)"></i>数字・期限</span>
+</div>
 
 <main id="log">
   <div id="banner"></div>
@@ -232,10 +293,29 @@ dialog::backdrop { background: oklch(0% 0 0 / .4); backdrop-filter: blur(2px); }
   </div>
   <div id="segs"></div>
   <div id="interim"></div>
+  <div class="spacer"></div>
+  <div class="tb-wrap">
+    <button id="toBottom">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M6 13l6 6 6-6"/></svg>最新へ
+    </button>
+  </div>
 </main>
-<button id="toBottom">
-  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M6 13l6 6 6-6"/></svg>最新へ
-</button>
+
+<section id="aiPanel" aria-label="AI要約">
+  <div class="ai-head">
+    <span class="pix" id="aiPix" aria-hidden="true">
+      <i style="--d:0"></i><i style="--d:1"></i><i style="--d:2"></i>
+      <i style="--d:7"></i><i style="--d:8"></i><i style="--d:3"></i>
+      <i style="--d:6"></i><i style="--d:5"></i><i style="--d:4"></i>
+    </span>
+    <span class="title">AI要約</span>
+    <span class="model" id="aiModelName"></span>
+    <span id="aiStatus"></span>
+    <button id="aiNow">今すぐ要約</button>
+  </div>
+  <div class="ai-progress"><i id="aiBar"></i></div>
+  <div id="aiBody"></div>
+</section>
 
 <footer>
   <div class="dock">
@@ -272,6 +352,32 @@ dialog::backdrop { background: oklch(0% 0 0 / .4); backdrop-filter: blur(2px); }
     <textarea id="contextInput" placeholder="例：〇〇社 情報システム部。テーマは経費精算のワークフロー化。固有名詞：SmartFlow、Entra ID"></textarea>
     <label class="label" for="instrInput" style="margin-top:12px">Claude への指示（ファイル末尾に付きます）<button id="resetInstr" class="link">既定に戻す</button></label>
     <textarea id="instrInput" style="min-height:140px"></textarea>
+
+    <div class="section-title">表示</div>
+    <div class="menu">
+      <label class="row">
+        <span class="grow">蛍光ペン<small>要望・課題・宿題・数字の言い回しにマーカーを引きます</small></span>
+        <span class="switch"><input type="checkbox" id="hlToggle"><span></span></span>
+      </label>
+    </div>
+
+    <div class="section-title">ローカル LLM 要約（実験）</div>
+    <div class="menu">
+      <label class="row">
+        <span class="grow">画面下に AI 要約を表示<small>端末内のモデルで、話した内容を数分ごとに箇条書きにします。文字起こしは端末の外に出ません。</small></span>
+        <span class="switch"><input type="checkbox" id="aiToggle"><span></span></span>
+      </label>
+      <div class="row">
+        <span class="grow">モデル<small id="modelInfo"></small></span>
+        <select id="modelSelect"></select>
+      </div>
+      <button id="clearModel">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/></svg>
+        ダウンロード済みモデルを削除
+      </button>
+    </div>
+
+    <div class="section-title">データ</div>
     <div class="menu">
       <button id="downloadAll">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12M8 11l4 4 4-4"/><path d="M5 21h14"/></svg>
@@ -286,7 +392,7 @@ dialog::backdrop { background: oklch(0% 0 0 / .4); backdrop-filter: blur(2px); }
         新しい商談を始める（端末内のデータを削除）
       </button>
     </div>
-    <p class="hint">「送る」は前回以降の差分を .txt ファイルとしてダウンロードします。「ファイル」アプリ &gt; ダウンロード からファイルを開き、共有で Slack に送ってください。<br>音声は保存しません。テキストはこの端末のブラウザ内にのみ保存されます。文字起こしはブラウザ標準の音声認識（iOS では Apple）を利用します。</p>
+    <p class="hint">「送る」は前回以降の差分を .txt ファイルとしてダウンロードします。「ファイル」アプリ &gt; ダウンロード からファイルを開き、共有で Slack に送ってください。<br>音声は保存しません。テキストはこの端末のブラウザ内にのみ保存されます。文字起こしはブラウザ標準の音声認識（iOS では Apple）を利用します。AI 要約のモデルは初回のみ Hugging Face からダウンロードし、ブラウザ内にキャッシュします。</p>
   </div>
 </dialog>
 
@@ -316,15 +422,39 @@ dialog::backdrop { background: oklch(0% 0 0 / .4); backdrop-filter: blur(2px); }
   ].join('\n');
   const fresh = (keep = {}) => ({
     segs: [], sentUpTo: 0, sendCount: 0, startedAt: null, context: keep.context || '', instr: keep.instr ?? null,
+    sums: [], sumUpTo: 0,
   });
   let S;
   try { S = JSON.parse(localStorage.getItem(KEY)) || fresh(); } catch { S = fresh(); }
   S.context ??= S.prefix || ''; S.instr ??= null; delete S.prefix;
+  S.sums ??= []; S.sumUpTo ??= 0;
+  // 端末ごとの表示設定（商談データとは別に保持）
+  const PKEY = 'livescribe.prefs';
+  let P;
+  try { P = JSON.parse(localStorage.getItem(PKEY)) || {}; } catch { P = {}; }
+  P.hl ??= true; P.ai ??= false; P.model ??= 'qwen3-0.6b'; P.loaded ??= {};
   const save = () => { try { localStorage.setItem(KEY, JSON.stringify(S)); } catch {} };
+  const savePrefs = () => { try { localStorage.setItem(PKEY, JSON.stringify(P)); } catch {} };
 
   const pad = (n) => String(n).padStart(2, '0');
   const fmt = (ts) => { const d = new Date(ts); return `${pad(d.getHours())}:${pad(d.getMinutes())}`; };
   const esc = (s) => s.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+
+  // ---------- 蛍光ペン（言い回しのルールで句にマーカー） ----------
+  const HL_RULES = [
+    ['todo', /(までに|確認(し|さ)|お願い(し|いた|でき)|検討(し|さ)|持ち帰|宿題|次回|共有(し|さ)|(お)?送り(し|ま)|送ります|調整(し|さ)|準備(し|さ)|用意(し|さ)|対応(し|さ)|やっておき|ご連絡|連絡(し|さ))/],
+    ['issue', /(困っ|課題|問題|大変|手間|面倒|時間がかか|止ま|遅[いれくか]|ミス|属人|手作業|手入力|転記|二重|負担|不満|使いにく|分かりにく|わかりにく|できない|できてない|足りない|追いつか)/],
+    ['req', /(したい|してほしい|して欲しい|ほしい|欲しい|必須|必要|できれば|できると|あると(いい|良い|助か|嬉し)|良さそう|いいですね|希望|要件|求め|必ず|させたい|になれば|になると)/],
+  ];
+  // 漢数字は「十分」「一番」などの誤検出を避けるため、単位を絞る
+  const NUM_RE = /([0-9０-９][0-9０-９,，.]*\s*(万|千|億)?\s*(円|人|名|件|日|時間|分|%|％|社|台|割|ヶ月|か月|カ月|年|回|画面|拠点|店舗|種類)|[一二三四五六七八九十百千]+\s*(万|千|億)?\s*(円|人|名|件|社|台|割|ヶ月|か月|カ月|拠点|店舗|種類)|来週|再来週|来月|来期|今期|今月|今週|年内|年度内|年度末|月末|期末|上期|下期|[0-9０-９]{1,2}月([0-9０-９]{1,2}日)?|[0-9]{4}年)/g;
+  const LABEL = { req: '要望', issue: '課題', todo: '宿題・次の一手', num: '数字・期限' };
+  const hl = (text) => text.split(/([\s　、。！？!?]+)/).map((part, i) => {
+    if (i % 2) return esc(part);
+    let html = esc(part).replace(NUM_RE, (m) => `<mark class="num" title="${LABEL.num}">${m}</mark>`);
+    const hit = HL_RULES.find(([, re]) => re.test(part));
+    return hit ? `<mark class="${hit[0]}" title="${LABEL[hit[0]]}">${html}</mark>` : html;
+  }).join('');
 
   // ---------- UI helpers ----------
   const log = $('#log'), segsEl = $('#segs'), interimEl = $('#interim');
@@ -343,7 +473,7 @@ dialog::backdrop { background: oklch(0% 0 0 / .4); backdrop-filter: blur(2px); }
   const segHTML = (seg, i) =>
     `<div class="seg${seg.kind === 'note' ? ' note' : ''}${seg.star ? ' starred' : ''}" data-i="${i}">` +
     `<span class="time mono">${fmt(seg.ts)}</span>` +
-    `<span class="txt">${seg.kind === 'note' ? '<span class="tag">メモ</span>' : ''}${esc(seg.text)}</span>` +
+    `<span class="txt">${seg.kind === 'note' ? '<span class="tag">メモ</span>' + esc(seg.text) : P.hl ? hl(seg.text) : esc(seg.text)}</span>` +
     `<button class="star" data-act="star" aria-label="重要">${STAR_SVG}</button></div>`;
   const dividerHTML = () => `<div class="divider"><span>送信済み #${S.sendCount}</span></div>`;
 
@@ -358,6 +488,7 @@ dialog::backdrop { background: oklch(0% 0 0 / .4); backdrop-filter: blur(2px); }
     segsEl.innerHTML = html;
     segsEl.querySelectorAll('.seg').forEach((el) => { el.style.animation = 'none'; });
     $('#empty').style.display = S.segs.length ? 'none' : '';
+    $('#legend').classList.toggle('off', !P.hl);
     updSend();
     if (keep) scrollBottom();
   };
@@ -374,6 +505,7 @@ dialog::backdrop { background: oklch(0% 0 0 / .4); backdrop-filter: blur(2px); }
     $('#empty').style.display = 'none';
     updSend();
     if (keep) scrollBottom();
+    AI.maybeRun();
   };
   const updSend = () => {
     const n = S.segs.length - S.sentUpTo;
@@ -499,7 +631,7 @@ dialog::backdrop { background: oklch(0% 0 0 / .4); backdrop-filter: blur(2px); }
     if (!S.startedAt) { S.startedAt = Date.now(); save(); }
     $('#recLabel').textContent = '停止'; $('#recBtn').classList.add('running');
     lockOn(); startRec();
-    clearInterval(timer); timer = setInterval(tick, 1000); tick();
+    clearInterval(timer); timer = setInterval(() => { tick(); AI.maybeRun(); }, 1000); tick();
   };
   function stop() {
     running = false;
@@ -515,6 +647,159 @@ dialog::backdrop { background: oklch(0% 0 0 / .4); backdrop-filter: blur(2px); }
       if (!rec) startRec();
     }
   });
+
+  // ---------- ローカル LLM 要約（Web Worker + WebGPU） ----------
+  const TFJS = 'https://cdn.jsdelivr.net/npm/@huggingface/transformers@4.2.0/+esm';
+  const MODELS = {
+    'qwen3-0.6b': { id: 'onnx-community/Qwen3-0.6B-ONNX', label: 'Qwen3 0.6B', size: '約570MB・軽量（おすすめ）' },
+    'tinyswallow-1.5b': { id: 'onnx-community/TinySwallow-1.5B-Instruct-ONNX', label: 'TinySwallow 1.5B', size: '約1.2GB・日本語特化（重い）' },
+  };
+  const WORKER_SRC = [
+    "import { AutoTokenizer, AutoModelForCausalLM, TextStreamer } from '" + TFJS + "';",
+    'let tok, model;',
+    'const files = {};',
+    'const onProgress = (p) => {',
+    "  if (p.status !== 'progress' || !p.total) return;",
+    '  files[p.file] = [p.loaded, p.total];',
+    '  let l = 0, t = 0; for (const [a, b] of Object.values(files)) { l += a; t += b; }',
+    "  postMessage({ type: 'progress', loaded: l, total: t });",
+    '};',
+    'self.onmessage = async ({ data }) => {',
+    '  try {',
+    "    if (data.type === 'load') {",
+    '      tok = await AutoTokenizer.from_pretrained(data.id, { progress_callback: onProgress });',
+    "      model = await AutoModelForCausalLM.from_pretrained(data.id, { dtype: 'q4f16', device: 'webgpu', progress_callback: onProgress });",
+    "      postMessage({ type: 'ready' });",
+    "    } else if (data.type === 'run') {",
+    '      const inputs = tok.apply_chat_template(data.messages, { add_generation_prompt: true, return_dict: true, enable_thinking: false });',
+    "      let text = '';",
+    '      const streamer = new TextStreamer(tok, { skip_prompt: true, skip_special_tokens: true, callback_function: (t) => { text += t; postMessage({ type: "token", text }); } });',
+    '      await model.generate({ ...inputs, max_new_tokens: 200, do_sample: false, streamer });',
+    "      postMessage({ type: 'done', text });",
+    '    }',
+    "  } catch (e) { postMessage({ type: 'error', message: String((e && e.message) || e) }); }",
+    '};',
+  ].join('\n');
+
+  const AI = (() => {
+    let worker = null, state = 'off', pending = null, lastRunAt = 0;
+    const panel = $('#aiPanel'), body = $('#aiBody');
+    const MIN_CHARS = 350, IDLE_MS = 180000, MIN_IDLE_CHARS = 80, MAX_INPUT = 1500;
+
+    const setStatus = (text, { busy = false, progress = null } = {}) => {
+      $('#aiStatus').textContent = text;
+      $('#aiStatus').classList.toggle('shimmer', busy);
+      $('#aiPix').classList.toggle('busy', busy);
+      $('#aiBar').style.width = progress == null ? '0' : `${Math.round(progress * 100)}%`;
+      $('#aiNow').disabled = state !== 'ready';
+    };
+    const mb = (n) => `${Math.round(n / 1e6)}MB`;
+
+    const bullets = (text) => {
+      const t = text.replace(/<think>[\s\S]*?(<\/think>|$)/g, '').trim();
+      const items = t.split('\n').map((l) => l.trim()).filter(Boolean)
+        .map((l) => l.replace(/^([・\-*•●]|\d+[.)．、])\s*/, '').replace(/\*\*/g, '').replace(/[。.]$/, '').trim())
+        .filter((l) => l && !/^[・\s]+$/.test(l));
+      return items.length ? items.slice(0, 6) : null;
+    };
+    const chunkHTML = (c, isPending) => {
+      const items = bullets(c.text);
+      const inner = items ? `<ul>${items.map((x) => `<li>${esc(x)}</li>`).join('')}</ul>` : `<div class="raw">${esc(c.text || '…')}</div>`;
+      return `<div class="chunk${isPending ? ' pending' : ''}"><div class="range mono">${fmt(c.ts0)}–${fmt(c.ts1)}${isPending ? ' · 生成中' : ''}</div>${inner}</div>`;
+    };
+    const render = () => {
+      const keep = body.scrollTop + body.clientHeight >= body.scrollHeight - 30;
+      let html = S.sums.map((c) => chunkHTML(c, false)).join('');
+      if (pending) html += chunkHTML(pending, true);
+      if (!html) {
+        html = state === 'idle'
+          ? '<div class="ai-empty">モデルは未ダウンロードです。<button id="aiLoad">モデルを読み込む</button>（' + esc(MODELS[P.model].size.split('・')[0]) + '）</div>'
+          : '<div class="ai-empty">話した内容がある程度たまると、ここに要点の箇条書きが出ます。</div>';
+      }
+      body.innerHTML = html;
+      $('#aiLoad')?.addEventListener('click', load);
+      if (keep) body.scrollTop = body.scrollHeight;
+    };
+
+    const pendingSegs = () => S.segs.slice(S.sumUpTo);
+    const pendingChars = () => pendingSegs().reduce((n, s) => n + s.text.length, 0);
+
+    const run = (force = false) => {
+      if (state !== 'ready' || pending) return;
+      const segs = pendingSegs();
+      const chars = pendingChars();
+      const idle = Date.now() - lastRunAt >= IDLE_MS;
+      if (!segs.length || !(force || chars >= MIN_CHARS || (idle && chars >= MIN_IDLE_CHARS))) return;
+      let text = segs.map((s) => (s.kind === 'note' ? `（メモ）${s.text}` : s.text)).join('\n');
+      if (text.length > MAX_INPUT) text = text.slice(-MAX_INPUT);
+      const ctx = S.context.trim() ? `商談の前提：${S.context.trim()}\n\n` : '';
+      pending = { from: S.sumUpTo, to: S.segs.length, ts0: segs[0].ts, ts1: segs[segs.length - 1].ts, text: '' };
+      lastRunAt = Date.now();
+      state = 'busy'; setStatus('要約中', { busy: true }); render();
+      worker.postMessage({
+        type: 'run',
+        // 小さいモデルは書式の細かい指定に引きずられて崩れやすいので、指示は短く保つ
+        messages: [
+          { role: 'user', content: `${ctx}次の商談の会話の要点を、短い箇条書きで3〜5個書いてください。会話に出てこないことは書かないでください。\n\n${text}` },
+        ],
+      });
+    };
+
+    const onMessage = ({ data }) => {
+      if (data.type === 'progress') {
+        setStatus(`ダウンロード中 ${mb(data.loaded)} / ${mb(data.total)}`, { busy: true, progress: data.loaded / data.total });
+      } else if (data.type === 'ready') {
+        state = 'ready'; P.loaded[P.model] = true; savePrefs();
+        setStatus('待機中'); render(); run();
+      } else if (data.type === 'token' && pending) {
+        pending.text = data.text; render();
+      } else if (data.type === 'done' && pending) {
+        S.sums.push({ ...pending, text: data.text.replace(/<think>[\s\S]*?<\/think>/g, '').trim() });
+        S.sumUpTo = pending.to; pending = null; save();
+        state = 'ready'; setStatus('待機中'); render();
+      } else if (data.type === 'error') {
+        fail(data.message);
+      }
+    };
+    const fail = (msg) => {
+      pending = null; state = 'error';
+      worker?.terminate(); worker = null;
+      setStatus('エラー');
+      body.innerHTML = `<div class="ai-empty">モデルを動かせませんでした（${esc(String(msg).slice(0, 160))}）。<br>メモリ不足の可能性があります。軽いモデルに切り替えるか、<button id="aiRetry">再試行</button></div>`;
+      $('#aiRetry').onclick = load;
+    };
+
+    function load() {
+      if (!navigator.gpu) {
+        state = 'error'; setStatus('非対応');
+        body.innerHTML = '<div class="ai-empty">このブラウザは WebGPU に対応していません（iOS 26 以降の Safari が必要です）。</div>';
+        return;
+      }
+      worker?.terminate();
+      const url = URL.createObjectURL(new Blob([WORKER_SRC], { type: 'text/javascript' }));
+      worker = new Worker(url, { type: 'module' });
+      worker.onmessage = onMessage;
+      worker.onerror = (e) => fail(e.message || 'Worker が停止しました');
+      state = 'loading'; setStatus('読み込み中', { busy: true, progress: 0 }); render();
+      worker.postMessage({ type: 'load', id: MODELS[P.model].id });
+    }
+
+    const apply = () => {
+      panel.classList.toggle('show', P.ai);
+      $('#aiModelName').textContent = MODELS[P.model].label;
+      if (!P.ai) { worker?.terminate(); worker = null; pending = null; state = 'off'; return; }
+      if (state === 'off' || state === 'error') {
+        if (P.loaded[P.model]) load();
+        else { state = 'idle'; setStatus('未読み込み'); render(); }
+      }
+    };
+    const switchModel = () => { worker?.terminate(); worker = null; pending = null; state = 'off'; apply(); };
+    $('#aiNow').onclick = () => {
+      if (!pendingSegs().length) return toast('新しい発言がまだありません');
+      run(true);
+    };
+    return { apply, switchModel, render, maybeRun: () => run(false), reset: () => { pending = null; if (state === 'busy') { worker?.terminate(); worker = null; state = 'off'; apply(); } else render(); } };
+  })();
 
   // ---------- export (ファイルとして共有 / ダウンロード) ----------
   // LLM 向けの出力：データを XML タグで区切り、指示は末尾に置く
@@ -570,7 +855,7 @@ dialog::backdrop { background: oklch(0% 0 0 / .4); backdrop-filter: blur(2px); }
     setTimeout(() => URL.revokeObjectURL(url), 60000);
   };
 
-  // 共有シート（Slack を選ぶとファイルとしてアップロード）。使えなければダウンロード
+  // 共有シート。使えなければダウンロード
   const exportFile = async (text, name) => {
     const file = new File([text], name, { type: 'text/plain' });
     if (navigator.canShare?.({ files: [file] })) {
@@ -593,9 +878,15 @@ dialog::backdrop { background: oklch(0% 0 0 / .4); backdrop-filter: blur(2px); }
 
   // ---------- settings ----------
   const dlg = $('#dlg');
+  const modelSelect = $('#modelSelect');
+  modelSelect.innerHTML = Object.entries(MODELS).map(([k, m]) => `<option value="${k}">${m.label}</option>`).join('');
+  const updModelInfo = () => { $('#modelInfo').textContent = MODELS[P.model].size + (P.loaded[P.model] ? ' · ダウンロード済み' : ''); };
   $('#menuBtn').onclick = () => {
     $('#contextInput').value = S.context;
     $('#instrInput').value = S.instr ?? DEFAULT_INSTR;
+    $('#hlToggle').checked = P.hl;
+    $('#aiToggle').checked = P.ai;
+    modelSelect.value = P.model; updModelInfo();
     dlg.showModal();
   };
   $('#closeDlg').onclick = () => dlg.close();
@@ -603,6 +894,14 @@ dialog::backdrop { background: oklch(0% 0 0 / .4); backdrop-filter: blur(2px); }
   $('#contextInput').addEventListener('input', (e) => { S.context = e.target.value; save(); });
   $('#instrInput').addEventListener('input', (e) => { S.instr = e.target.value === DEFAULT_INSTR ? null : e.target.value; save(); });
   $('#resetInstr').onclick = (e) => { e.preventDefault(); S.instr = null; save(); $('#instrInput').value = DEFAULT_INSTR; toast('指示を既定に戻しました'); };
+  $('#hlToggle').onchange = (e) => { P.hl = e.target.checked; savePrefs(); renderAll(); };
+  $('#aiToggle').onchange = (e) => { P.ai = e.target.checked; savePrefs(); AI.apply(); };
+  modelSelect.onchange = () => { P.model = modelSelect.value; savePrefs(); updModelInfo(); AI.switchModel(); };
+  $('#clearModel').onclick = async () => {
+    if (!confirm('ダウンロード済みのモデルを削除しますか？（次回使うときに再ダウンロードします）')) return;
+    try { await caches.delete('transformers-cache'); } catch {}
+    P.loaded = {}; savePrefs(); updModelInfo(); AI.switchModel(); toast('モデルを削除しました');
+  };
   $('#shareAll').onclick = async () => {
     const text = buildText(0, S.segs.length, 'all');
     if (!text) return toast('内容がありません');
@@ -617,7 +916,7 @@ dialog::backdrop { background: oklch(0% 0 0 / .4); backdrop-filter: blur(2px); }
     if (!confirm('現在の文字起こしを端末から削除して、新しい商談を始めますか？')) return;
     if (running) stop();
     S = fresh({ instr: S.instr });
-    save(); renderAll(); setInterim('');
+    save(); renderAll(); setInterim(''); AI.reset();
     $('#recLabel').textContent = '録音開始'; tick();
     dlg.close(); toast('新しい商談を開始できます');
   };
@@ -625,7 +924,7 @@ dialog::backdrop { background: oklch(0% 0 0 / .4); backdrop-filter: blur(2px); }
   // ---------- init ----------
   if (!SR) banner('このブラウザは音声認識に対応していません。iPhone の Safari で開いてください。');
   if (S.segs.length) $('#recLabel').textContent = '録音再開';
-  tick(); renderAll(); updWL();
+  tick(); renderAll(); updWL(); AI.apply();
 })();
 </script>
 </body>
