@@ -537,6 +537,37 @@ dialog::backdrop { background: oklch(0% 0 0 / .4); backdrop-filter: blur(2px); }
       </button>
     </div>
 
+    <!-- 写真と検索の拡張：各機能（台形補正・OCR・意味検索）の実装が入るまで隠しておく -->
+    <div id="extSettings" hidden>
+      <div class="section-title">写真と検索（実験）</div>
+      <div class="menu">
+        <label class="row">
+          <span class="grow">写真の台形補正<small>撮った写真の四隅を見つけて、正面から撮ったように補正します。元の写真も残します。</small></span>
+          <span class="switch"><input type="checkbox" id="warpToggle"><span></span></span>
+        </label>
+        <label class="row">
+          <span class="grow">補正後は元画像を消す<small>容量を節約します。消した後は範囲を直せなくなります。</small></span>
+          <span class="switch"><input type="checkbox" id="dropOrigToggle"><span></span></span>
+        </label>
+        <div class="row">
+          <span class="grow">写真の文字認識（OCR）<small>写真の文字を読み取り、検索と書き出しに使います。</small></span>
+          <select id="ocrSelect">
+            <option value="off">オフ</option>
+            <option value="after">録音停止後</option>
+            <option value="now">撮影直後</option>
+          </select>
+        </div>
+        <label class="row">
+          <span class="grow">過去の写真も OCR する<small>録音していないときに、新しい商談から順に少しずつ処理します。</small></span>
+          <span class="switch"><input type="checkbox" id="ocrPastToggle"><span></span></span>
+        </label>
+        <label class="row">
+          <span class="grow">意味検索<small>言い換え（「費用」で「コスト」など）でも履歴を探せるようにします。</small></span>
+          <span class="switch"><input type="checkbox" id="semanticToggle"><span></span></span>
+        </label>
+      </div>
+    </div>
+
     <div class="section-title">データ</div>
     <div class="menu">
       <label class="row">
@@ -605,13 +636,27 @@ dialog::backdrop { background: oklch(0% 0 0 / .4); backdrop-filter: blur(2px); }
   const DB = (() => {
     let dbp;
     const open = () => (dbp ??= new Promise((resolve, reject) => {
-      const r = indexedDB.open('livescribe', 1);
-      r.onupgradeneeded = () => {
+      const r = indexedDB.open('livescribe', 2);
+      r.onupgradeneeded = (e) => {
         const db = r.result;
-        db.createObjectStore('sessions', { keyPath: 'id' });
-        db.createObjectStore('images', { keyPath: 'id' }).createIndex('session', 'session');
+        if (e.oldVersion < 1) {
+          db.createObjectStore('sessions', { keyPath: 'id' });
+          db.createObjectStore('images', { keyPath: 'id' }).createIndex('session', 'session');
+        }
+        // v2: 意味検索のベクトル（商談オブジェクトに入れると 400ms ごとの保存が重くなるので分ける）と、暗号化の鍵
+        if (e.oldVersion < 2) {
+          db.createObjectStore('vectors', { keyPath: 'id' }).createIndex('sessionId', 'sessionId');
+          db.createObjectStore('keys', { keyPath: 'id' });
+        }
       };
-      r.onsuccess = () => resolve(r.result);
+      // 旧バージョンのタブが開いたままだと、バージョンアップが終わるまで待たされる
+      r.onblocked = () => banner('別のタブで Live Scribe が開いています。そのタブを閉じてから再読み込みしてください。');
+      r.onsuccess = () => {
+        const db = r.result;
+        // 次のバージョンアップを、このタブが妨げないようにする
+        db.onversionchange = () => { db.close(); banner('新しいバージョンが別のタブで開かれました。再読み込みしてください。'); };
+        resolve(db);
+      };
       r.onerror = () => reject(r.error);
     }));
     const tx = async (store, mode, fn) => {
@@ -629,6 +674,13 @@ dialog::backdrop { background: oklch(0% 0 0 / .4); backdrop-filter: blur(2px); }
       all: (store) => tx(store, 'readonly', (s) => s.getAll()),
       del: (store, k) => tx(store, 'readwrite', (s) => s.delete(k)),
       imagesOf: (sid) => tx('images', 'readonly', (s) => s.index('session').getAll(sid)),
+      // インデックスの値が一致するレコードをまとめて消す（商談の削除時に vectors を消す）
+      delWhere: (store, index, key) => tx(store, 'readwrite', (s) => {
+        s.index(index).openKeyCursor(IDBKeyRange.only(key)).onsuccess = (e) => {
+          const c = e.target.result;
+          if (c) { s.delete(c.primaryKey); c.continue(); }
+        };
+      }),
     };
   })();
 
@@ -669,6 +721,8 @@ dialog::backdrop { background: oklch(0% 0 0 / .4); backdrop-filter: blur(2px); }
   let P;
   try { P = JSON.parse(localStorage.getItem(PKEY)) || {}; } catch { P = {}; }
   P.hl ??= true; P.ai ??= false; P.model ??= 'lfm2-350m'; P.meter ??= true; P.zip ??= true; P.yomi ??= false;
+  // 写真と検索の拡張（モデルのダウンロードが発生するので、すべて初期値はオフ）
+  P.warp ??= false; P.ocr ??= 'off'; P.ocrPast ??= false; P.semantic ??= false; P.dropOriginal ??= false;
   if (P.v !== 2) { P.model = 'lfm2-350m'; P.v = 2; delete P.loaded; }
   const savePrefs = () => { try { localStorage.setItem(PKEY, JSON.stringify(P)); } catch {} };
 
@@ -1177,7 +1231,8 @@ dialog::backdrop { background: oklch(0% 0 0 / .4); backdrop-filter: blur(2px); }
     };
 
     const run = async (force = false) => {
-      if (state !== 'ready' || job) return;
+      // OCR・埋め込みのジョブ実行中は待つ（終わったら Jobs から maybeRun で呼び直される）
+      if (state !== 'ready' || job || Jobs.busy()) return;
       if (pendingTitle && await tryTitle()) return;
       // 処理中に商談が切り替わっても、結果は元の商談に書き込む
       const sess = S;
@@ -1266,6 +1321,84 @@ dialog::backdrop { background: oklch(0% 0 0 / .4); backdrop-filter: blur(2px); }
     // 読み検索の解析器と LLM が同時に重い処理をしないよう、推論中・読み込み中を外から見られるようにする
     const busy = () => P.ai && (state === 'busy' || state === 'loading');
     return { apply, switchModel, render, maybeRun: () => { if (P.ai) run(); }, requestTitle, busy };
+  })();
+
+  // ---------- 重い処理の Worker 管理（台形補正・OCR・埋め込み） ----------
+  // 1機能1Worker。必要になったときに起動し、iPhone など低メモリの端末では使わなくなったら terminate してモデルごとメモリを返す。
+  // Safari は deviceMemory を返さないので、不明なときは低メモリ扱いにする
+  const LOW_MEM = !(navigator.deviceMemory >= 8);
+  const Workers = (() => {
+    const IDLE_MS = 60000;
+    const defs = new Map(), live = new Map();
+    // url: Worker のスクリプト、module: type:'module' で起動するか、onEvent: id の付かないメッセージ（進捗など）の受け口
+    const define = (name, { url, module = false, onEvent = null }) => { defs.set(name, { url, module, onEvent }); };
+    const stop = (name, reason = 'Worker を停止しました') => {
+      const w = live.get(name);
+      if (!w) return;
+      live.delete(name); clearTimeout(w.timer); w.worker.terminate();
+      for (const p of w.pending.values()) p.reject(new Error(reason));
+    };
+    const start = (name) => {
+      const d = defs.get(name);
+      if (!d) throw new Error(`未定義の Worker: ${name}`);
+      const w = { worker: new Worker(d.url, d.module ? { type: 'module' } : undefined), pending: new Map(), seq: 0, timer: 0 };
+      w.worker.onmessage = ({ data }) => {
+        const p = data?.id != null && w.pending.get(data.id);
+        if (!p) { d.onEvent?.(data); return; }
+        w.pending.delete(data.id); idle(name, w);
+        if (data.type === 'error') p.reject(new Error(data.message || 'Worker でエラーが発生しました'));
+        else p.resolve(data);
+      };
+      // スクリプトの読み込み失敗やメモリ不足で落ちたときは、待っている呼び出しをすべて失敗させる
+      w.worker.onerror = (e) => { e.preventDefault?.(); stop(name, e.message || 'Worker が停止しました'); };
+      live.set(name, w);
+      return w;
+    };
+    const idle = (name, w) => {
+      clearTimeout(w.timer);
+      if (LOW_MEM && !w.pending.size) w.timer = setTimeout(() => { if (live.get(name) === w && !w.pending.size) stop(name, 'idle'); }, IDLE_MS);
+    };
+    // msg に id を付けて送り、同じ id の返信（type:'error' 以外）で解決する
+    const call = (name, msg, transfer = []) => new Promise((resolve, reject) => {
+      const w = live.get(name) || start(name);
+      clearTimeout(w.timer);
+      const id = ++w.seq;
+      w.pending.set(id, { resolve, reject });
+      w.worker.postMessage({ ...msg, id }, transfer);
+    });
+    return { define, call, stop, alive: (name) => live.has(name) };
+  })();
+
+  // ---------- ジョブキュー（OCR・埋め込みと AI メモの LLM を同時に走らせない） ----------
+  // iPhone のメモリと発熱を抑えるため、重い処理は1件ずつ実行する。prio が大きいもの（検索語の埋め込みなど）を先に回す
+  const Jobs = (() => {
+    const queue = [];
+    let current = null, seq = 0, waitTimer = 0;
+    const pump = () => {
+      if (current || !queue.length) return;
+      // LLM の読み込み・推論中は待つ
+      if (AI.busy()) { clearTimeout(waitTimer); waitTimer = setTimeout(pump, 1000); return; }
+      const j = current = queue.shift();
+      Promise.resolve().then(j.fn).then(j.resolve, j.reject).finally(() => {
+        current = null;
+        AI.maybeRun();
+        setTimeout(pump, 0);
+      });
+    };
+    const add = (label, fn, { prio = 0 } = {}) => new Promise((resolve, reject) => {
+      queue.push({ id: ++seq, label, fn, prio, resolve, reject });
+      queue.sort((a, b) => b.prio - a.prio || a.id - b.id);
+      pump();
+    });
+    // まだ始まっていないジョブを取り消す（商談の削除や機能のオフ時）
+    const cancel = (pred) => {
+      for (let i = queue.length - 1; i >= 0; i--) {
+        if (!pred(queue[i])) continue;
+        const [j] = queue.splice(i, 1);
+        j.reject(new DOMException('取り消しました', 'AbortError'));
+      }
+    };
+    return { add, cancel, busy: () => !!current, size: () => queue.length + (current ? 1 : 0), current: () => current?.label ?? null };
   })();
 
   // ---------- export（ファイルとして共有 / ダウンロード） ----------
@@ -1730,6 +1863,7 @@ dialog::backdrop { background: oklch(0% 0 0 / .4); backdrop-filter: blur(2px); }
     if (!target || !confirm(`「${titleOf(target)}」を端末から削除しますか？（写真も削除されます。元に戻せません）`)) return;
     if (id === S.id && running) stop();
     for (const im of await DB.imagesOf(id).catch(() => [])) await DB.del('images', im.id).catch(() => {});
+    await DB.delWhere('vectors', 'sessionId', id).catch(() => {});
     await DB.del('sessions', id).catch(() => {});
     if (id === S.id) {
       clearTimeout(saveTimer); saveTimer = null;
@@ -1782,6 +1916,11 @@ dialog::backdrop { background: oklch(0% 0 0 / .4); backdrop-filter: blur(2px); }
     $('#zipToggle').checked = P.zip;
     $('#aiToggle').checked = P.ai;
     $('#yomiToggle').checked = P.yomi; updYomiInfo();
+    $('#warpToggle').checked = P.warp;
+    $('#dropOrigToggle').checked = P.dropOriginal;
+    $('#ocrSelect').value = P.ocr;
+    $('#ocrPastToggle').checked = P.ocrPast;
+    $('#semanticToggle').checked = P.semantic;
     modelSelect.value = P.model; updModelInfo();
     dlg.showModal();
   };
@@ -1803,6 +1942,11 @@ dialog::backdrop { background: oklch(0% 0 0 / .4); backdrop-filter: blur(2px); }
     try { await caches.delete(YOMI_CACHE); } catch {}
     updYomiInfo(); toast('辞書を削除しました');
   };
+  $('#warpToggle').onchange = (e) => { P.warp = e.target.checked; savePrefs(); };
+  $('#dropOrigToggle').onchange = (e) => { P.dropOriginal = e.target.checked; savePrefs(); };
+  $('#ocrSelect').onchange = (e) => { P.ocr = e.target.value; savePrefs(); };
+  $('#ocrPastToggle').onchange = (e) => { P.ocrPast = e.target.checked; savePrefs(); };
+  $('#semanticToggle').onchange = (e) => { P.semantic = e.target.checked; savePrefs(); };
   modelSelect.onchange = () => { P.model = modelSelect.value; savePrefs(); updModelInfo(); AI.switchModel(); };
   $('#clearModel').onclick = async () => {
     if (!confirm('ダウンロード済みのモデルを削除しますか？（次回使うときに再ダウンロードします）')) return;
@@ -1822,6 +1966,9 @@ dialog::backdrop { background: oklch(0% 0 0 / .4); backdrop-filter: blur(2px); }
     if (!file) return toast('内容がありません');
     download(file);
   };
+
+  // 実機での確認用：URL の末尾に #debug を付けて開くと、コンソールから基盤を触れる
+  if (location.hash === '#debug') window.LS = { DB, Jobs, Workers, LOW_MEM };
 
   // ---------- init ----------
   (async () => {
