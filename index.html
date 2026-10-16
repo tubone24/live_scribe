@@ -114,6 +114,7 @@ main { flex: 1; min-height: 0; overflow-y: auto; padding: 8px 16px 0; -webkit-ov
 #titleBtn svg { color: var(--ink-3); }
 #titleEdit { flex: 1; min-width: 0; height: 32px; padding: 0 10px; border: 0; border-radius: 8px; background: var(--field); color: var(--ink); font: inherit; font-size: 16px; font-weight: 600; outline: 0; box-shadow: 0 0 0 2px var(--accent-tint); }
 #drList .s mark { background: var(--hl-req); color: inherit; border-radius: 2px; padding: 0 1px; }
+#drList .s .yl { font-size: 10px; font-weight: 600; padding: 1px 5px; margin-right: 5px; border-radius: 5px; background: var(--accent-tint); color: var(--accent); }
 #banner {
   display: none; margin: 8px 0; padding: 10px 12px; border-radius: 10px;
   background: var(--orange-tint); color: var(--orange); font-size: 13px; line-height: 1.6;
@@ -521,6 +522,21 @@ dialog::backdrop { background: oklch(0% 0 0 / .4); backdrop-filter: blur(2px); }
       </button>
     </div>
 
+    <div class="section-title">読み検索（実験）</div>
+    <div class="menu">
+      <label class="row">
+        <span class="grow">読みでも検索する<small>履歴の検索で、表記が違っても読みが同じ発言を見つけます（音声認識の同音異義の誤変換、例：経費→軽費 も拾えます）。端末内の形態素解析（kuromoji.js）で読みを付けます。社名・製品名などをコンテキストに「表記（よみ）」の形で書くと、その読みを優先します。</small></span>
+        <span class="switch"><input type="checkbox" id="yomiToggle"><span></span></span>
+      </label>
+      <div class="row">
+        <span class="grow">辞書<small id="yomiInfo"></small></span>
+      </div>
+      <button id="clearYomi">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/></svg>
+        ダウンロード済み辞書を削除
+      </button>
+    </div>
+
     <div class="section-title">データ</div>
     <div class="menu">
       <label class="row">
@@ -536,7 +552,7 @@ dialog::backdrop { background: oklch(0% 0 0 / .4); backdrop-filter: blur(2px); }
         この商談の全文を共有シートで送る
       </button>
     </div>
-    <p class="hint">「送る」は前回以降の差分を zip（テキスト＋写真）でダウンロードします。「ファイル」アプリ &gt; ダウンロード から開き、共有で Slack に送ってください。商談の切り替え・削除は左上のボタンから行えます。<br>音声は保存しません。テキストと写真はこの端末のブラウザ内にのみ保存されます。文字起こしはブラウザ標準の音声認識（iOS では Apple）を利用します。AI メモのモデルは初回のみ Hugging Face からダウンロードし、ブラウザ内にキャッシュします。</p>
+    <p class="hint">「送る」は前回以降の差分を zip（テキスト＋写真）でダウンロードします。「ファイル」アプリ &gt; ダウンロード から開き、共有で Slack に送ってください。商談の切り替え・削除は左上のボタンから行えます。<br>音声は保存しません。テキストと写真はこの端末のブラウザ内にのみ保存されます。文字起こしはブラウザ標準の音声認識（iOS では Apple）を利用します。AI メモのモデルは初回のみ Hugging Face から、読み検索の辞書は初回のみ jsDelivr からダウンロードし、ブラウザ内にキャッシュします。</p>
   </div>
 </dialog>
 
@@ -652,14 +668,14 @@ dialog::backdrop { background: oklch(0% 0 0 / .4); backdrop-filter: blur(2px); }
   const PKEY = 'livescribe.prefs';
   let P;
   try { P = JSON.parse(localStorage.getItem(PKEY)) || {}; } catch { P = {}; }
-  P.hl ??= true; P.ai ??= false; P.model ??= 'lfm2-350m'; P.meter ??= true; P.zip ??= true;
+  P.hl ??= true; P.ai ??= false; P.model ??= 'lfm2-350m'; P.meter ??= true; P.zip ??= true; P.yomi ??= false;
   if (P.v !== 2) { P.model = 'lfm2-350m'; P.v = 2; delete P.loaded; }
   const savePrefs = () => { try { localStorage.setItem(PKEY, JSON.stringify(P)); } catch {} };
 
   // 書き込みはまとめて行う（発言のたびに IndexedDB へ書かない）
   let saveTimer = null;
   const flush = () => { clearTimeout(saveTimer); saveTimer = null; S.updatedAt = Date.now(); return DB.put('sessions', S).catch(() => {}); };
-  const save = () => { clearTimeout(saveTimer); saveTimer = setTimeout(flush, 400); };
+  const save = () => { clearTimeout(saveTimer); saveTimer = setTimeout(flush, 400); Yomi.touch(); };
   document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden' && saveTimer) flush(); });
   window.addEventListener('pagehide', () => { if (saveTimer) flush(); });
 
@@ -932,7 +948,7 @@ dialog::backdrop { background: oklch(0% 0 0 / .4); backdrop-filter: blur(2px); }
     // iOS は continuous 時に「前回の確定文＋続き」を返すことがあるので重複を吸収する
     const prev = S.segs[lastSegIdxThisRec];
     if (prev && !prev.kind) {
-      if (text.startsWith(prev.text)) { prev.text = text; save(); renderOne(lastSegIdxThisRec); return; }
+      if (text.startsWith(prev.text)) { prev.text = text; delete prev.yomi; save(); renderOne(lastSegIdxThisRec); return; }
       if (prev.text.startsWith(text)) return;
     }
     appendSeg({ ts: Date.now(), text, star: false });
@@ -1003,6 +1019,7 @@ dialog::backdrop { background: oklch(0% 0 0 / .4); backdrop-filter: blur(2px); }
     lockOn(); startRec(); Meter.start();
     clearInterval(timer); timer = setInterval(() => { tick(); AI.maybeRun(); }, 1000); tick();
     renderDrawer();
+    setTimeout(Yomi.warm, 10000); // 読み検索の辞書は、録音が落ち着いてから読み込む
   };
   function stop() {
     running = false;
@@ -1147,7 +1164,7 @@ dialog::backdrop { background: oklch(0% 0 0 / .4); backdrop-filter: blur(2px); }
       try {
         const title = toSessionTitle(await ask([{ role: 'system', content: SESSION_TITLE_SYS }, { role: 'user', content: text }], 20));
         if (title && (!sess.title || sess.titleAuto)) {
-          sess.title = title; sess.titleAuto = true;
+          sess.title = title; sess.titleAuto = true; delete sess.titleYomi;
           if (sess === S) { save(); renderTitle(); } else DB.put('sessions', sess).catch(() => {});
           renderDrawer(); toast(`商談名を付けました：${title}`);
         }
@@ -1246,7 +1263,9 @@ dialog::backdrop { background: oklch(0% 0 0 / .4); backdrop-filter: blur(2px); }
     };
     const switchModel = () => { worker?.terminate(); worker = null; job = null; state = 'off'; apply(); };
     const requestTitle = (sess) => { pendingTitle = sess; run(); };
-    return { apply, switchModel, render, maybeRun: () => { if (P.ai) run(); }, requestTitle };
+    // 読み検索の解析器と LLM が同時に重い処理をしないよう、推論中・読み込み中を外から見られるようにする
+    const busy = () => P.ai && (state === 'busy' || state === 'loading');
+    return { apply, switchModel, render, maybeRun: () => { if (P.ai) run(); }, requestTitle, busy };
   })();
 
   // ---------- export（ファイルとして共有 / ダウンロード） ----------
@@ -1401,6 +1420,184 @@ dialog::backdrop { background: oklch(0% 0 0 / .4); backdrop-filter: blur(2px); }
     window.open(`reader.html?s=${encodeURIComponent(S.id)}`, '_blank');
   };
 
+  // ---------- 読み検索（形態素解析で本文と検索語を「読み」に変換して照合する） ----------
+  // 読みは発言の確定後に非同期で計算して保存し、検索時には再計算しない。解析器は yomi-worker.js の裏に隠す
+  const YOMI_ENGINE = 'kuromoji-0.1.2/ipadic/1'; // 解析器・辞書・読みの作り方を変えたら上げる（古い商談は自動で再計算）
+  const YOMI_CACHE = 'yomi-dict-v1';
+  const KANJI_RE = /[㐀-鿿豈-﫿々〆ヶ]/;
+  const hash = (t) => { let h = 5381; for (let i = 0; i < t.length; i++) h = (h * 33 + t.charCodeAt(i)) | 0; return (h >>> 0).toString(36); };
+  // コンテキスト欄の「表記（よみ）」を読みの上書きルールにする。解析前に最長一致で置換する
+  const reEsc = (t) => t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const rulesOf = (context) => {
+    const map = new Map();
+    for (const m of String(context || '').normalize('NFKC').matchAll(/([^\s、。,:：・()「」]+)\(\s*([ぁ-ゖァ-ヺー]+)\s*\)/g)) map.set(m[1].toLowerCase(), m[2]);
+    const keys = [...map.keys()].sort((a, b) => b.length - a.length);
+    const re = keys.length && new RegExp(keys.map(reEsc).join('|'), 'gi');
+    return {
+      ver: `${YOMI_ENGINE}:${hash(JSON.stringify([...map].sort()))}`,
+      apply: (text) => { text = text.normalize('NFKC'); return re ? text.replace(re, (m) => map.get(m.toLowerCase()) ?? m) : text; },
+    };
+  };
+
+  const Yomi = (() => {
+    let worker = null, state = 'off', progress = '', seq = 0, inflight = null;
+    const queue = [], waiting = new Map();
+
+    const setState = (s, p = '') => { state = s; progress = p; updYomiInfo(); };
+    // 1件ずつ Worker に送る。検索語（prio）は優先し、それ以外は LLM の推論中は後回しにする
+    const pump = () => {
+      if (state !== 'ready' || inflight != null || !queue.length) return;
+      const k = queue.findIndex((q) => q.prio);
+      if (k < 0 && AI.busy()) { setTimeout(pump, 1000); return; }
+      const q = queue.splice(Math.max(k, 0), 1)[0];
+      inflight = q.id; waiting.set(q.id, q.resolve);
+      worker.postMessage({ id: q.id, text: q.text });
+    };
+    const convert = (text, prio = false) => new Promise((resolve) => {
+      if (state !== 'ready') return resolve(null);
+      queue.push({ id: ++seq, text, resolve, prio }); pump();
+    });
+    const failAll = () => { for (const q of queue.splice(0)) q.resolve(null); for (const r of waiting.values()) r(null); waiting.clear(); inflight = null; };
+
+    const onMessage = ({ data }) => {
+      if (data.type === 'progress') setState('loading', `${data.done}/${data.total}`);
+      else if (data.type === 'ready') {
+        setState('ready'); navigator.storage?.persist?.().catch(() => {});
+        pump(); touch(); backfill(3000);
+        if ($('#drSearch').value.trim()) renderDrawer(false);
+      } else if (data.type === 'error') { failAll(); worker?.terminate(); worker = null; setState('error', data.message); }
+      else if (data.type === 'yomi') {
+        const r = waiting.get(data.id); waiting.delete(data.id); inflight = null;
+        r?.(data.yomi == null ? null : norm(data.yomi)); pump();
+      }
+    };
+    const load = () => {
+      if (!P.yomi || worker) return;
+      // LLM の読み込み・推論中は辞書を載せない（iPhone のメモリ対策）
+      if (AI.busy()) { setTimeout(load, 3000); return; }
+      worker = new Worker('yomi-worker.js');
+      worker.onmessage = onMessage;
+      worker.onerror = (e) => { failAll(); worker?.terminate(); worker = null; setState('error', e.message || 'Worker が停止しました'); };
+      setState('loading', '');
+    };
+    const unload = () => { failAll(); worker?.terminate(); worker = null; setState('off'); };
+
+    // 商談の中で、読みが未計算（または古いルールで計算済み）の要素を集める
+    const jobsOf = (sess, ver) => {
+      const stale = sess.yomiVer !== ver, jobs = [];
+      sess.segs.forEach((s, i) => { if (s.text && (stale || s.yomi == null)) jobs.push({ k: 'seg', i, text: s.text }); });
+      (sess.topics || []).forEach((t, i) => { if (t.title && (stale || t.yomi == null)) jobs.push({ k: 'topic', i, text: t.title }); });
+      if (sess.title && (stale || sess.titleYomi == null)) jobs.push({ k: 'title', text: sess.title });
+      if (sess.context?.trim() && (stale || sess.contextYomi == null)) jobs.push({ k: 'context', text: sess.context });
+      return { stale, jobs };
+    };
+    const needs = (sess) => { const { stale, jobs } = jobsOf(sess, rulesOf(sess.context).ver); return stale || jobs.length > 0; };
+    const clearAll = (sess) => {
+      sess.segs.forEach((s) => delete s.yomi); (sess.topics || []).forEach((t) => delete t.yomi);
+      delete sess.titleYomi; delete sess.contextYomi;
+    };
+    // 計算中に本文が変わっているかもしれないので、最新の商談で本文が同じものにだけ書き込む
+    const merge = (target, ver, jobs) => {
+      if (rulesOf(target.context).ver !== ver) return false; // ルールが変わった → 次の fill でやり直し
+      if (target.yomiVer !== ver) { clearAll(target); target.yomiVer = ver; }
+      for (const j of jobs) {
+        if (j.k === 'seg') { const o = target.segs[j.i]; if (o?.text === j.text) o.yomi = j.yomi; }
+        else if (j.k === 'topic') { const o = target.topics?.[j.i]; if (o?.title === j.text) o.yomi = j.yomi; }
+        else if (j.k === 'title') { if (target.title === j.text) target.titleYomi = j.yomi; }
+        else if (target.context === j.text) target.contextYomi = j.yomi;
+      }
+      return true;
+    };
+    // 読みの書き込みは updatedAt を変えない（履歴の並び順を動かさない）
+    const persist = async (sess, ver, jobs) => {
+      let target = await DB.get('sessions', sess.id).catch(() => null);
+      if (sess.id === S.id) target = S; // 開いている商談はメモリ上の最新状態に書き込む（await 中に切り替わった場合も含む）
+      if (!target || !merge(target, ver, jobs)) return false;
+      if (target === S) { if (!saveTimer) DB.put('sessions', S).catch(() => {}); }
+      else {
+        await DB.put('sessions', target).catch(() => {});
+        const k = sessions.findIndex((x) => x.id === target.id);
+        if (k >= 0) sessions[k] = normalize(target);
+      }
+      hayCache.delete(target.id);
+      return true;
+    };
+
+    const filling = new Set(), again = new Set();
+    const fill = async (sess) => {
+      if (state !== 'ready') return;
+      if (filling.has(sess.id)) { again.add(sess.id); return; }
+      filling.add(sess.id);
+      try {
+        const rules = rulesOf(sess.context);
+        const { stale, jobs } = jobsOf(sess, rules.ver);
+        if (stale && !jobs.length) await persist(sess, rules.ver, []);
+        // 長い商談は少しずつ書き込む（途中で閉じても進んだ分は残る）
+        for (let k = 0; k < jobs.length; k += 40) {
+          const chunk = jobs.slice(k, k + 40);
+          for (const j of chunk) { j.yomi = await convert(rules.apply(j.text)); if (j.yomi == null) return; }
+          if (!(await persist(sess, rules.ver, chunk))) break;
+        }
+      } finally {
+        filling.delete(sess.id);
+        if (again.delete(sess.id)) fill(sess.id === S.id ? S : sess);
+      }
+    };
+    // 開いている商談：変更のたびに少し待ってから、未計算の要素だけを計算する
+    let touchTimer = 0;
+    const touch = () => { if (!P.yomi || state !== 'ready') return; clearTimeout(touchTimer); touchTimer = setTimeout(() => fill(S), 800); };
+    // ほかの商談：録音していないときに、新しい順に1件ずつ埋める
+    let bfTimer = 0;
+    const backfill = (ms = 2000) => {
+      clearTimeout(bfTimer);
+      bfTimer = setTimeout(async () => {
+        if (!P.yomi || state !== 'ready') return;
+        if (running || AI.busy()) return backfill(30000);
+        const list = (await DB.all('sessions').catch(() => [])).map(normalize).sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
+        const next = list.find((s) => s.id !== S.id && needs(s));
+        if (next) { await fill(next); backfill(); }
+      }, ms);
+    };
+
+    // 検索語：漢字を含むときだけ解析器で読みにする（かな・英数字はそのまま読みとして使う）
+    const query = async (t) => {
+      if (!P.yomi) return null;
+      if (!KANJI_RE.test(t)) return t;
+      if (state !== 'ready') { load(); return null; }
+      return convert(t, true);
+    };
+    const cachedSize = async () => {
+      try {
+        const c = await caches.open(YOMI_CACHE);
+        const keys = await c.keys();
+        let n = 0;
+        for (const k of keys) n += +((await c.match(k))?.headers.get('content-length') || 0);
+        return keys.length ? n : 0;
+      } catch { return 0; }
+    };
+    const apply = async () => {
+      if (!P.yomi) return unload();
+      // 辞書がキャッシュ済みなら起動後すぐ読み込んで、未計算の商談を埋め始める。未ダウンロードなら検索欄を開いたときに読み込む
+      if (await cachedSize()) setTimeout(load, 3000);
+      else updYomiInfo();
+    };
+    return {
+      apply, touch, query, cachedSize, unload,
+      warm: () => { if (P.yomi && state !== 'ready') load(); },
+      status: () => ({ state, progress }),
+    };
+  })();
+  const updYomiInfo = async () => {
+    const el = $('#yomiInfo'); if (!el) return;
+    const { state, progress } = Yomi.status();
+    const size = await Yomi.cachedSize();
+    const mbs = size ? `${(size / 1e6).toFixed(1)}MB` : '';
+    el.textContent = state === 'loading' ? `ダウンロード・読み込み中 ${progress}` + (mbs ? ` · ${mbs}` : '')
+      : state === 'ready' ? `読み込み済み · ${mbs || 'キャッシュなし'}`
+      : state === 'error' ? `エラー（${String(progress).slice(0, 80)}）`
+      : size ? `ダウンロード済み · ${mbs}` : '未ダウンロード（約18MB・検索欄を開いたときに取得）';
+  };
+
   // ---------- drawer（商談の履歴） ----------
   let sessions = [];
   const drawer = $('#drawer'), scrim = $('#scrim'), drList = $('#drList'), glide = $('#glide');
@@ -1409,8 +1606,10 @@ dialog::backdrop { background: oklch(0% 0 0 / .4); backdrop-filter: blur(2px); }
   $('#drawerBtn').onclick = openDrawer;
   $('#drawerClose').onclick = closeDrawer;
   scrim.onclick = closeDrawer;
-  $('#drSearchBtn').onclick = () => { const s = $('#drSearch'); s.classList.toggle('show'); if (s.classList.contains('show')) s.focus(); else { s.value = ''; renderDrawer(); } };
-  $('#drSearch').addEventListener('input', () => renderDrawer(false));
+  $('#drSearchBtn').onclick = () => { const s = $('#drSearch'); s.classList.toggle('show'); if (s.classList.contains('show')) { s.focus(); Yomi.warm(); } else { s.value = ''; renderDrawer(); } };
+  // 漢字を含む検索語の読み変換で Worker を連打しないよう、入力が落ち着いてから検索する
+  let searchTimer = 0;
+  $('#drSearch').addEventListener('input', () => { clearTimeout(searchTimer); searchTimer = setTimeout(() => renderDrawer(false), 150); });
 
   const subtitleOf = (s) => {
     const t = s.topics?.[s.topics.length - 1]?.title;
@@ -1423,6 +1622,33 @@ dialog::backdrop { background: oklch(0% 0 0 / .4); backdrop-filter: blur(2px); }
   const norm = (t) => String(t || '').normalize('NFKC').toLowerCase()
     .replace(/[\u30a1-\u30f6]/g, (c) => String.fromCharCode(c.charCodeAt(0) - 0x60)).replace(/\s+/g, ' ').trim();
   const searchText = (s) => norm([titleOf(s), s.context, ...(s.topics || []).map((t) => t.title), ...s.segs.map((x) => x.text)].join(' \n '));
+  // 読みの検索文字列（読みは norm 済みで保存している。未計算の要素は含めず、表記一致だけで扱う）
+  const searchYomi = (s) => [s.titleYomi, s.contextYomi, ...(s.topics || []).map((t) => t.yomi), ...s.segs.map((x) => x.yomi)].filter(Boolean).join(' \n ');
+  // キー入力のたびに作り直さないよう商談ごとにキャッシュする（開いている商談は毎回作る）
+  const hayCache = new Map();
+  const hayOf = (s) => {
+    const c = hayCache.get(s.id);
+    if (s !== S && c?.u === s.updatedAt) return c;
+    const v = { u: s.updatedAt, hay: searchText(s), hayYomi: searchYomi(s) };
+    hayCache.set(s.id, v);
+    return v;
+  };
+  // 語ごとに「表記で含むか、読みで含むか」を見て、全部の語がどちらかで当たれば AND でヒット。表記一致を上位に並べる
+  const match = (h, terms) => {
+    let score = 0;
+    for (const t of terms) {
+      if (h.hay.includes(t.surface)) score += 10;
+      else if (t.yomi && h.hayYomi.includes(t.yomi)) score += 3;
+      else return 0;
+    }
+    return score;
+  };
+  // 読みだけで当たったときは、読みが一致した発言の先頭を出す（読みの位置から表記の位置へは戻さない）
+  const yomiSnippet = (s, y) => {
+    const f = s.segs.find((x) => x.yomi?.includes(y))?.text ?? (s.topics || []).find((t) => t.yomi?.includes(y))?.title
+      ?? (s.titleYomi?.includes(y) ? titleOf(s) : s.contextYomi?.includes(y) ? s.context : null);
+    return '<span class="yl">読み一致</span>' + esc(clip(f || subtitleOf(s), 40));
+  };
   // 一覧に、最初の語が見つかった箇所の前後を出す（ヒット箇所にマーカー）
   const snippet = (s, term) => {
     const fields = [titleOf(s), s.context, ...(s.topics || []).map((t) => t.title), ...s.segs.map((x) => x.text)];
@@ -1434,18 +1660,20 @@ dialog::backdrop { background: oklch(0% 0 0 / .4); backdrop-filter: blur(2px); }
     }
     return esc(clip(subtitleOf(s), 40));
   };
+  let drawerSeq = 0;
   async function renderDrawer(reload = true) {
+    const my = ++drawerSeq;
     if (reload) sessions = (await DB.all('sessions').catch(() => [])).map(normalize);
     // 開いている商談はメモリ上の最新状態を使う
     sessions = sessions.filter((s) => s.id !== S.id).concat([S]).sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
-    const terms = norm($('#drSearch').value).split(' ').filter(Boolean);
+    const terms = await Promise.all(norm($('#drSearch').value).split(' ').filter(Boolean).map(async (t) => ({ surface: t, yomi: await Yomi.query(t) })));
+    if (my !== drawerSeq) return; // 後から始まった描画を優先する
     const hits = new Map();
-    const list = terms.length ? sessions.filter((s) => {
-      const hay = searchText(s);
-      if (!terms.every((t) => hay.includes(t))) return false;
-      hits.set(s.id, snippet(s, terms[0]));
-      return true;
-    }) : sessions;
+    const list = terms.length ? sessions.map((s) => {
+      const h = hayOf(s), score = match(h, terms);
+      if (score) hits.set(s.id, h.hay.includes(terms[0].surface) ? snippet(s, terms[0].surface) : yomiSnippet(s, terms[0].yomi));
+      return { s, score };
+    }).filter((x) => x.score).sort((a, b) => b.score - a.score || (b.s.updatedAt || 0) - (a.s.updatedAt || 0)).map((x) => x.s) : sessions;
     drList.innerHTML = list.length ? list.map((s) => {
       const photos = s.segs.filter((x) => x.kind === 'image').length;
       const live = s.id === S.id && running;
@@ -1527,7 +1755,7 @@ dialog::backdrop { background: oklch(0% 0 0 / .4); backdrop-filter: blur(2px); }
   const commitTitle = () => {
     if (titleEdit.hidden) return;
     const v = titleEdit.value.trim();
-    if (v !== S.title) { S.title = v; S.titleAuto = false; save(); renderDrawer(); }
+    if (v !== S.title) { S.title = v; S.titleAuto = false; delete S.titleYomi; save(); renderDrawer(); }
     titleEdit.hidden = true; $('#titleBtn').hidden = false; renderTitle();
   };
   titleEdit.addEventListener('blur', commitTitle);
@@ -1553,19 +1781,28 @@ dialog::backdrop { background: oklch(0% 0 0 / .4); backdrop-filter: blur(2px); }
     $('#meterToggle').checked = P.meter;
     $('#zipToggle').checked = P.zip;
     $('#aiToggle').checked = P.ai;
+    $('#yomiToggle').checked = P.yomi; updYomiInfo();
     modelSelect.value = P.model; updModelInfo();
     dlg.showModal();
   };
   $('#closeDlg').onclick = () => dlg.close();
   dlg.addEventListener('click', (e) => { if (e.target === dlg) dlg.close(); });
-  $('#titleInput').addEventListener('input', (e) => { S.title = e.target.value; S.titleAuto = false; save(); renderTitle(); });
+  $('#titleInput').addEventListener('input', (e) => { S.title = e.target.value; S.titleAuto = false; delete S.titleYomi; save(); renderTitle(); });
   $('#zipToggle').onchange = (e) => { P.zip = e.target.checked; savePrefs(); };
-  $('#contextInput').addEventListener('input', (e) => { S.context = e.target.value; save(); });
+  $('#contextInput').addEventListener('input', (e) => { S.context = e.target.value; delete S.contextYomi; save(); });
   $('#instrInput').addEventListener('input', (e) => { S.instr = e.target.value === DEFAULT_INSTR ? null : e.target.value; save(); });
   $('#resetInstr').onclick = (e) => { e.preventDefault(); S.instr = null; save(); $('#instrInput').value = DEFAULT_INSTR; toast('指示を既定に戻しました'); };
   $('#hlToggle').onchange = (e) => { P.hl = e.target.checked; savePrefs(); renderAll(); };
   $('#meterToggle').onchange = (e) => { P.meter = e.target.checked; savePrefs(); if (!P.meter) Meter.stop(); else if (running) Meter.start(); };
   $('#aiToggle').onchange = (e) => { P.ai = e.target.checked; savePrefs(); AI.apply(); };
+  // オンにしたときは、明示的に選んだので辞書の取得をすぐ始める
+  $('#yomiToggle').onchange = (e) => { P.yomi = e.target.checked; savePrefs(); if (P.yomi) Yomi.warm(); else Yomi.unload(); updYomiInfo(); };
+  $('#clearYomi').onclick = async () => {
+    if (!confirm('読み検索の辞書を削除しますか？（次回使うときに再ダウンロードします。計算済みの読みは残ります）')) return;
+    Yomi.unload();
+    try { await caches.delete(YOMI_CACHE); } catch {}
+    updYomiInfo(); toast('辞書を削除しました');
+  };
   modelSelect.onchange = () => { P.model = modelSelect.value; savePrefs(); updModelInfo(); AI.switchModel(); };
   $('#clearModel').onclick = async () => {
     if (!confirm('ダウンロード済みのモデルを削除しますか？（次回使うときに再ダウンロードします）')) return;
@@ -1610,7 +1847,7 @@ dialog::backdrop { background: oklch(0% 0 0 / .4); backdrop-filter: blur(2px); }
     if (!list.length) await DB.put('sessions', S).catch(() => {});
     P.current = S.id; savePrefs();
     if (S.segs.length) $('#recLabel').textContent = '録音再開';
-    tick(); renderAll(); updWL(); AI.apply(); renderDrawer();
+    tick(); renderAll(); updWL(); AI.apply(); Yomi.apply(); renderDrawer();
   })();
 })();
 </script>
