@@ -147,6 +147,7 @@ main { flex: 1; min-height: 0; overflow-y: auto; padding: 8px 16px 0; -webkit-ov
 #standaloneNote a { color: var(--accent); font-weight: 600; }
 .empty { margin-top: 20vh; display: flex; flex-direction: column; align-items: center; gap: 14px; color: var(--ink-3); text-align: center; line-height: 1.7; }
 .empty .pix { grid-template-columns: repeat(3, 5px); gap: 2.5px; }
+.empty a { display: inline-block; margin-top: 6px; color: var(--accent); font-weight: 600; text-decoration: none; }
 .empty .pix i { width: 5px; height: 5px; border-radius: 1px; }
 .empty b { color: var(--ink-2); font-weight: 500; }
 .seg {
@@ -294,7 +295,7 @@ footer { padding: 0 12px calc(env(safe-area-inset-bottom) + 10px); }
 .dr-head { display: flex; align-items: center; gap: 8px; padding: 2px 4px 10px 8px; }
 .dr-head .brand { font-weight: 600; font-size: 15px; display: flex; align-items: center; gap: 8px; }
 .dr-head .icon-btn { margin-left: auto; }
-.dr-item { width: 100%; display: flex; align-items: center; gap: 10px; padding: 9px 10px; border-radius: 10px; font-size: 14px; font-weight: 500; color: var(--ink); }
+.dr-item { width: 100%; text-decoration: none; display: flex; align-items: center; gap: 10px; padding: 9px 10px; border-radius: 10px; font-size: 14px; font-weight: 500; color: var(--ink); }
 .dr-item:active { background: var(--hover); }
 .dr-item svg { color: var(--ink-2); }
 .dr-sec { display: flex; align-items: center; gap: 6px; padding: 14px 10px 6px; font-size: 12px; color: var(--ink-3); }
@@ -327,6 +328,7 @@ dialog::backdrop { background: oklch(0% 0 0 / .4); backdrop-filter: blur(2px); }
 .sheet-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 12px; }
 .sheet-head h2 { margin: 0; font-size: 15px; font-weight: 600; }
 .sheet-head h2:focus { outline: none; }
+.help-link { margin-left: auto; margin-right: 4px; font-size: 13px; font-weight: 600; color: var(--accent); text-decoration: none; padding: 4px 10px; border-radius: 999px; background: var(--accent-tint); }
 .label { font-size: 12px; color: var(--ink-2); margin: 4px 2px 6px; display: block; }
 .label .link { float: right; color: var(--accent); font-size: 12px; }
 .sheet textarea, .sheet input[type="text"] {
@@ -473,7 +475,7 @@ dialog::backdrop { background: oklch(0% 0 0 / .4); backdrop-filter: blur(2px); }
   <div id="standaloneNote">ホーム画面のアプリとして開いています。この画面では音声認識が動かないことがあり、保存した商談も Safari とは別になります。<a id="openSafari" href="#">Safari で開く</a>（ホーム画面に追加し直すときは「Webアプリとして開く」をオフにしてください）</div>
   <div class="empty" id="empty">
     <span class="pix" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></span>
-    <div><b>録音を始めると、ここに文字が流れます</b><br>音声は保存せず、テキストと写真もこの端末内だけに残ります</div>
+    <div><b>録音を始めると、ここに文字が流れます</b><br>音声は保存せず、テキストと写真もこの端末内だけに残ります<br><a href="help.html">使い方を見る</a></div>
   </div>
   <div id="segs"></div>
   <div id="interim"></div>
@@ -543,6 +545,10 @@ dialog::backdrop { background: oklch(0% 0 0 / .4); backdrop-filter: blur(2px); }
     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h8"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/></svg>
     新しい商談
   </button>
+  <a class="dr-item" href="help.html">
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M9.5 9.5a2.5 2.5 0 0 1 4.8 1c0 1.7-2.3 2-2.3 3.5M12 17.5h.01"/></svg>
+    使い方
+  </a>
   <div class="dr-sec">商談の履歴
     <button class="icon-btn" id="drSearchBtn" aria-label="検索">
       <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="6.5"/><path d="M20 20l-4-4"/></svg>
@@ -557,6 +563,7 @@ dialog::backdrop { background: oklch(0% 0 0 / .4); backdrop-filter: blur(2px); }
   <div class="sheet">
     <div class="sheet-head">
       <h2 tabindex="-1" autofocus>設定</h2>
+      <a class="help-link" href="help.html">使い方</a>
       <button class="icon-btn" id="closeDlg" aria-label="閉じる">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>
       </button>

@@ -1,0 +1,675 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#fafafa">
+<title>Live Scribe 使い方</title>
+<link rel="icon" href="icons/icon-192.png">
+<style>
+:root {
+  --page: oklch(98.5% .001 286); --surface: oklch(100% 0 0); --field: oklch(96.1% .001 286);
+  --ink: oklch(24.7% .006 258); --ink-2: oklch(50.6% .01 264); --ink-3: oklch(69.5% .009 264);
+  --line: oklch(94.6% .003 264); --line-strong: oklch(91.2% .005 258);
+  --accent: oklch(62.6% .205 255); --accent-tint: oklch(96% .019 253);
+  --green: oklch(60.3% .155 151); --green-tint: oklch(95.8% .017 159);
+  --orange: oklch(68.9% .179 50); --orange-tint: oklch(96.4% .021 68);
+  --red: oklch(62.1% .192 23); --red-tint: oklch(95.6% .017 17);
+  --violet: oklch(58% .19 300); --violet-tint: oklch(95.5% .025 300);
+  --hl-req: oklch(91% .16 100 / .7); --hl-issue: oklch(86% .1 5 / .65);
+  --hl-todo: oklch(88% .13 155 / .65); --hl-num: oklch(86% .08 245 / .7);
+  --shadow-card: 0 0 0 1px var(--line), 0 1px 2px oklch(0% 0 0 / .04), 0 4px 16px oklch(0% 0 0 / .06);
+  --shadow-phone: 0 18px 40px oklch(30% .05 260 / .18), 0 2px 6px oklch(0% 0 0 / .1);
+  color-scheme: light dark;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --page: oklch(20.9% .004 264); --surface: oklch(26% .006 271); --field: oklch(29.3% .006 271);
+    --ink: oklch(96.4% .002 248); --ink-2: oklch(73.1% .008 261); --ink-3: oklch(54.1% .01 264);
+    --line: oklch(30.8% .006 258); --line-strong: oklch(35.6% .007 264);
+    --accent: oklch(68% .173 253); --accent-tint: oklch(68% .173 253 / .16);
+    --green: oklch(70.5% .154 154); --green-tint: oklch(70.5% .154 154 / .14);
+    --orange: oklch(74.6% .156 56); --orange-tint: oklch(74.6% .156 56 / .14);
+    --red: oklch(66.6% .18 21); --red-tint: oklch(66.6% .18 21 / .14);
+    --violet: oklch(72% .15 300); --violet-tint: oklch(72% .15 300 / .15);
+    --hl-req: oklch(80% .15 100 / .38); --hl-issue: oklch(70% .15 5 / .4);
+    --hl-todo: oklch(72% .15 155 / .38); --hl-num: oklch(68% .12 245 / .45);
+    --shadow-card: 0 0 0 1px oklch(100% 0 0 / .11), 0 4px 16px oklch(0% 0 0 / .25);
+    --shadow-phone: 0 18px 40px oklch(0% 0 0 / .45);
+  }
+}
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; scroll-padding-top: 64px; }
+body {
+  margin: 0; background: var(--page); color: var(--ink);
+  font-family: -apple-system, BlinkMacSystemFont, "Hiragino Sans", "Noto Sans JP", sans-serif;
+  font-size: 15px; line-height: 1.7; -webkit-text-size-adjust: 100%;
+}
+a { color: var(--accent); }
+svg { display: block; }
+.wrap { max-width: 760px; margin: 0 auto; padding: 0 16px calc(env(safe-area-inset-bottom) + 48px); }
+
+/* 上部のバー：アプリに戻る・目次 */
+.top {
+  position: sticky; top: 0; z-index: 10; background: color-mix(in oklch, var(--page) 88%, transparent);
+  backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); border-bottom: 1px solid var(--line);
+  padding-top: env(safe-area-inset-top);
+}
+.top-in { max-width: 760px; margin: 0 auto; display: flex; align-items: center; gap: 10px; padding: 8px 16px; }
+.back { display: inline-flex; align-items: center; gap: 4px; text-decoration: none; font-weight: 600; font-size: 14px; white-space: nowrap; }
+.toc { display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; flex: 1; mask-image: linear-gradient(90deg, #000 85%, transparent); }
+.toc::-webkit-scrollbar { display: none; }
+.toc a { flex: none; text-decoration: none; color: var(--ink-2); font-size: 12.5px; padding: 4px 10px; border-radius: 999px; background: var(--field); }
+
+/* 見出し */
+.hero { text-align: center; padding: 36px 0 8px; }
+.hero h1 { font-size: 30px; margin: 10px 0 4px; letter-spacing: -.01em; }
+.hero p { margin: 0; color: var(--ink-2); }
+.logo { width: 64px; height: 64px; border-radius: 16px; margin: 0 auto; box-shadow: var(--shadow-card); }
+section { padding-top: 40px; }
+h2 { font-size: 21px; margin: 0 0 4px; display: flex; align-items: center; gap: 10px; letter-spacing: -.005em; }
+h2 .ic { width: 34px; height: 34px; border-radius: 10px; display: grid; place-items: center; flex: none; }
+.lead { color: var(--ink-2); margin: 0 0 16px; }
+h3 { font-size: 16px; margin: 22px 0 8px; }
+
+/* カード・図 */
+.card { background: var(--surface); border-radius: 18px; box-shadow: var(--shadow-card); padding: 16px; }
+.card + .card { margin-top: 12px; }
+.fig { width: 100%; height: auto; }
+.fig text { font-family: inherit; }
+.cap { font-size: 12.5px; color: var(--ink-3); text-align: center; margin-top: 8px; }
+.grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+@media (max-width: 560px) { .grid2 { grid-template-columns: 1fr; } }
+
+/* スクリーンショット（iPhone の枠） */
+.phone { width: min(260px, 72vw); margin: 0 auto; border-radius: 34px; padding: 8px; background: #121214; box-shadow: var(--shadow-phone); position: relative; }
+.phone img { display: block; width: 100%; border-radius: 27px; }
+.phone.sm { width: min(220px, 60vw); }
+.shot { text-align: center; }
+
+/* 画面の見方：番号の吹き出し */
+.anno { position: absolute; inset: 8px; pointer-events: none; }
+.pin { position: absolute; width: 19px; height: 19px; margin: -9.5px 0 0 -9.5px; border-radius: 50%; background: var(--accent); color: #fff; font-size: 10.5px; font-weight: 700; display: grid; place-items: center; box-shadow: 0 0 0 2px var(--surface), 0 2px 6px oklch(0% 0 0 / .3); }
+.legend { list-style: none; padding: 0; margin: 0; display: grid; gap: 8px; }
+.legend li { display: grid; grid-template-columns: 26px 1fr; gap: 10px; align-items: start; font-size: 14px; }
+.legend .n { width: 22px; height: 22px; border-radius: 50%; background: var(--accent); color: #fff; font-size: 12px; font-weight: 700; display: grid; place-items: center; margin-top: 1px; }
+.legend b { font-weight: 600; }
+.legend small { display: block; color: var(--ink-3); font-size: 12.5px; line-height: 1.5; }
+
+/* 手順 */
+.steps { display: grid; gap: 10px; counter-reset: s; list-style: none; padding: 0; margin: 0; }
+.steps li { display: grid; grid-template-columns: 32px 1fr; gap: 12px; align-items: center; background: var(--surface); box-shadow: var(--shadow-card); border-radius: 14px; padding: 10px 12px; font-size: 14px; }
+.steps li::before { counter-increment: s; content: counter(s); width: 28px; height: 28px; border-radius: 50%; background: var(--accent-tint); color: var(--accent); font-weight: 700; display: grid; place-items: center; }
+.steps b { font-weight: 600; }
+
+/* 小さな表示 */
+.chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.chip { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; padding: 4px 10px; border-radius: 999px; background: var(--field); color: var(--ink-2); }
+.kbd { display: inline-block; font-size: 12.5px; padding: 0 7px; border-radius: 6px; background: var(--field); box-shadow: inset 0 -1px 0 var(--line-strong); color: var(--ink); white-space: nowrap; }
+mark { color: inherit; border-radius: 3px; padding: 0 2px; }
+.m-req { background: var(--hl-req); } .m-issue { background: var(--hl-issue); } .m-todo { background: var(--hl-todo); } .m-num { background: var(--hl-num); }
+.hlrows { display: grid; gap: 10px; }
+.hlrow { display: grid; grid-template-columns: 118px 1fr; gap: 10px; align-items: center; font-size: 14px; }
+.hlrow .k { display: flex; align-items: center; gap: 6px; font-size: 12.5px; color: var(--ink-2); white-space: nowrap; }
+.hlrow .k i { width: 18px; height: 10px; border-radius: 3px; display: inline-block; }
+
+.faq { display: grid; gap: 10px; }
+.faq details { background: var(--surface); box-shadow: var(--shadow-card); border-radius: 14px; padding: 12px 14px; }
+.faq summary { font-weight: 600; cursor: pointer; list-style: none; display: flex; gap: 8px; align-items: center; }
+.faq summary::-webkit-details-marker { display: none; }
+.faq summary::before { content: "Q"; width: 22px; height: 22px; border-radius: 6px; background: var(--orange-tint); color: var(--orange); font-size: 12px; display: grid; place-items: center; flex: none; }
+.faq details p { margin: 8px 0 0 30px; color: var(--ink-2); font-size: 14px; }
+.tbl { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+.tbl td { padding: 9px 4px; border-top: 1px solid var(--line); vertical-align: top; }
+.tbl td:first-child { font-weight: 600; white-space: nowrap; padding-right: 12px; }
+.tbl tr:first-child td { border-top: 0; }
+.foot { text-align: center; color: var(--ink-3); font-size: 12.5px; margin-top: 48px; }
+.foot a { color: var(--ink-2); }
+
+/* スマホで読める図：縦長の SVG は幅を抑えて中央に */
+.fig.tall { max-width: 400px; margin: 0 auto; }
+/* 3ステップ（HTML のタイル） */
+.flow4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; align-items: start; }
+.flow4 .st { text-align: center; position: relative; }
+.flow4 .st + .st::before { content: ""; position: absolute; left: -14%; top: 26px; width: 26%; border-top: 2px dashed var(--line-strong); }
+.flow4 .bub { width: 54px; height: 54px; border-radius: 50%; display: grid; place-items: center; margin: 0 auto 6px; position: relative; z-index: 1; }
+.flow4 b { display: block; font-size: 13px; }
+.flow4 small { display: block; font-size: 11px; color: var(--ink-3); line-height: 1.4; }
+/* 手順＋図の行（文字スキャン） */
+.howto { display: grid; gap: 10px; }
+.howto .row { display: grid; grid-template-columns: 132px 1fr; gap: 12px; align-items: center; }
+.howto .row svg { width: 132px; height: auto; }
+.howto .t b { display: block; font-size: 14px; }
+.howto .t small { display: block; color: var(--ink-3); font-size: 12.5px; }
+.howto .num { display: inline-grid; place-items: center; width: 20px; height: 20px; border-radius: 50%; background: var(--accent); color: #fff; font-size: 11px; font-weight: 700; margin-right: 6px; vertical-align: 1px; }
+.note { background: var(--green-tint); color: var(--green); border-radius: 12px; padding: 10px 12px; font-size: 13px; font-weight: 600; }
+/* 横棒（メモリ） */
+.bars { display: grid; gap: 8px; }
+.bar { display: grid; grid-template-columns: 1fr auto; gap: 8px; align-items: center; font-size: 13px; }
+.bar .b { height: 22px; border-radius: 7px; position: relative; overflow: hidden; background: var(--field); }
+.bar .b i { position: absolute; inset: 0 auto 0 0; border-radius: 7px; }
+.bar .b span { position: relative; padding-left: 8px; line-height: 22px; font-size: 12px; font-weight: 600; }
+.swap { display: grid; grid-template-columns: 1fr auto 1fr; gap: 8px; align-items: center; text-align: center; margin-top: 14px; font-size: 12.5px; }
+.swap .x { border-radius: 12px; padding: 10px 6px; }
+/* 表記ゆれ */
+.eq { display: grid; gap: 8px; }
+.eq div { display: flex; align-items: center; gap: 8px; background: var(--field); border-radius: 10px; padding: 8px 12px; font-size: 14px; }
+.eq span { color: var(--ink-3); font-size: 12px; margin-left: auto; }
+
+/* 図の中の色（ライト・ダーク共通で CSS 変数を使う） */
+.s-box { fill: var(--surface); stroke: var(--line-strong); }
+.s-soft { fill: var(--field); }
+.s-ink { fill: var(--ink); } .s-ink2 { fill: var(--ink-2); } .s-ink3 { fill: var(--ink-3); }
+.s-acc { fill: var(--accent); } .s-acc-t { fill: var(--accent-tint); } .s-acc-s { stroke: var(--accent); }
+.s-grn { fill: var(--green); } .s-grn-t { fill: var(--green-tint); } .s-grn-s { stroke: var(--green); }
+.s-org { fill: var(--orange); } .s-org-t { fill: var(--orange-tint); } .s-org-s { stroke: var(--orange); }
+.s-red { fill: var(--red); } .s-red-t { fill: var(--red-tint); }
+.s-vio { fill: var(--violet); } .s-vio-t { fill: var(--violet-tint); } .s-vio-s { stroke: var(--violet); }
+.s-line { stroke: var(--line-strong); } .s-ink2s { stroke: var(--ink-2); } .s-ink3s { stroke: var(--ink-3); }
+.flow { stroke-dasharray: 5 6; animation: flow 1.2s linear infinite; }
+@keyframes flow { to { stroke-dashoffset: -11; } }
+.blink { animation: blink 1.4s ease-in-out infinite; }
+@keyframes blink { 50% { opacity: .35; } }
+@media (prefers-reduced-motion: reduce) { .flow, .blink { animation: none; } }
+</style>
+</head>
+<body>
+
+<!-- 図で使うアイコン（線画・currentColor） -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="i-mic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></symbol>
+  <symbol id="i-star" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linejoin="round"><path d="M12 3.5l2.6 5.3 5.9.9-4.3 4.1 1 5.8L12 16.9l-5.2 2.7 1-5.8-4.3-4.1 5.9-.9z"/></symbol>
+  <symbol id="i-cam" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8.5A2.5 2.5 0 0 1 6.5 6h1.6l1.4-2h5l1.4 2h1.6A2.5 2.5 0 0 1 20 8.5v8a2.5 2.5 0 0 1-2.5 2.5h-11A2.5 2.5 0 0 1 4 16.5z"/><circle cx="12" cy="12.5" r="3.3"/></symbol>
+  <symbol id="i-scan" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8V6a2 2 0 0 1 2-2h2M16 4h2a2 2 0 0 1 2 2v2M20 16v2a2 2 0 0 1-2 2h-2M8 20H6a2 2 0 0 1-2-2v-2M8 9h8M8 12h8M8 15h5"/></symbol>
+  <symbol id="i-send" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5M12 18v-6M9 14.5l3-3 3 3"/></symbol>
+  <symbol id="i-note" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/></symbol>
+  <symbol id="i-search" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="6.5"/><path d="M16 16l4.5 4.5"/></symbol>
+  <symbol id="i-spark" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linejoin="round"><path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8z"/><path d="M19 15l.8 2.2L22 18l-2.2.8L19 21l-.8-2.2L16 18l2.2-.8z"/></symbol>
+  <symbol id="i-lock" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></symbol>
+  <symbol id="i-chip" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="6" width="12" height="12" rx="2"/><path d="M9 3v3M15 3v3M9 18v3M15 18v3M3 9h3M3 15h3M18 9h3M18 15h3"/></symbol>
+  <symbol id="i-help" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M9.5 9.5a2.5 2.5 0 0 1 4.8 1c0 1.7-2.3 2-2.3 3.5M12 17.5h.01"/></symbol>
+  <symbol id="i-zip" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3h9l4 4v13a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1z"/><path d="M11 3v2M11 7v2M11 11v2M10 15h2v3h-2z"/></symbol>
+  <symbol id="i-claude" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2.5l1.6 6.1 5.6-2.9-3.9 4.9 6.2 1.4-6.2 1.4 3.9 4.9-5.6-2.9L12 21.5l-1.6-6.1-5.6 2.9 3.9-4.9L2.5 12l6.2-1.4-3.9-4.9 5.6 2.9z"/></symbol>
+</svg>
+
+<header class="top">
+  <div class="top-in">
+    <a class="back" href="./">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg>アプリへ
+    </a>
+    <nav class="toc" aria-label="目次">
+      <a href="#start">はじめに</a><a href="#screen">画面</a><a href="#speech">音声認識</a><a href="#marks">印とメモ</a>
+      <a href="#ai">AI メモ</a><a href="#photo">写真</a><a href="#scan">文字スキャン</a><a href="#search">検索</a>
+      <a href="#send">Claude へ</a><a href="#privacy">データ</a><a href="#memory">メモリ</a><a href="#faq">困ったとき</a>
+    </nav>
+  </div>
+</header>
+
+<main class="wrap">
+
+  <div class="hero">
+    <img class="logo" src="icons/icon-192.png" alt="">
+    <h1>Live Scribe の使い方</h1>
+    <p>商談をその場で文字にして、Claude にまとめて渡す</p>
+  </div>
+
+  <!-- ===== はじめに ===== -->
+  <section id="start">
+    <h2><span class="ic" style="background:var(--accent-tint);color:var(--accent)"><svg width="18" height="18"><use href="#i-spark"/></svg></span>3ステップで使う</h2>
+    <p class="lead">録音して、印を付けて、送るだけ。</p>
+    <div class="card">
+      <div class="flow4">
+        <div class="st"><div class="bub" style="background:var(--red-tint);color:var(--red)"><svg width="26" height="26"><use href="#i-mic"/></svg></div><b>① 録音</b><small>録音開始</small></div>
+        <div class="st"><div class="bub" style="background:var(--orange-tint);color:var(--orange)"><svg width="26" height="26"><use href="#i-star"/></svg></div><b>② 印・メモ</b><small>☆・メモ・写真</small></div>
+        <div class="st"><div class="bub" style="background:var(--accent-tint);color:var(--accent)"><svg width="26" height="26"><use href="#i-send"/></svg></div><b>③ 送る</b><small>zip を保存</small></div>
+        <div class="st"><div class="bub" style="background:var(--orange-tint);color:#d97757"><svg width="26" height="26"><use href="#i-claude"/></svg></div><b>Claude</b><small>要件整理・試作</small></div>
+      </div>
+    </div>
+    <h3>最初に1回だけ</h3>
+    <ol class="steps">
+      <li><span>iPhone の <b>Safari</b> で開く（ホーム画面に追加してもOK）</span></li>
+      <li><span>設定 → アプリ → Safari → <b>マイク</b> を許可、<b>Siri（音声入力）</b>をオン</span></li>
+      <li><span>右上の <svg width="14" height="14" style="display:inline;vertical-align:-2px" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 7h10M18 7h2M4 17h4M12 17h8"/><circle cx="16" cy="7" r="2"/><circle cx="10" cy="17" r="2"/></svg> 設定で、商談の<b>コンテキスト</b>（社名・製品名）を書いておく</span></li>
+    </ol>
+  </section>
+
+  <!-- ===== 画面 ===== -->
+  <section id="screen">
+    <h2><span class="ic" style="background:var(--accent-tint);color:var(--accent)"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><rect x="6" y="2.5" width="12" height="19" rx="3"/><path d="M10.5 18.5h3" stroke-linecap="round"/></svg></span>画面の見方</h2>
+    <p class="lead">番号の場所を押して使います。</p>
+    <div class="grid2">
+      <div class="shot">
+        <div class="phone">
+          <img src="docs/screenshots/01-live-transcript.png" alt="録音中の画面">
+          <div class="anno">
+            <span class="pin" style="left:8.7%;top:4.5%">1</span>
+            <span class="pin" style="left:26.5%;top:4.5%">2</span>
+            <span class="pin" style="left:46.1%;top:4.5%">3</span>
+            <span class="pin" style="left:86.3%;top:4.5%">4</span>
+            <span class="pin" style="left:95.4%;top:4.5%">5</span>
+            <span class="pin" style="left:8.4%;top:9.5%">6</span>
+            <span class="pin" style="left:94.7%;top:25.7%">7</span>
+            <span class="pin" style="left:26.7%;top:34.6%">8</span>
+            <span class="pin" style="left:43.0%;top:90.4%">9</span>
+            <span class="pin" style="left:16.3%;top:96.8%">10</span>
+            <span class="pin" style="left:44.0%;top:96.8%">11</span>
+            <span class="pin" style="left:83.7%;top:96.8%">12</span>
+          </div>
+        </div>
+      </div>
+      <ul class="legend">
+        <li><span class="n">1</span><span><b>履歴</b><small>過去の商談・新しい商談・検索</small></span></li>
+        <li><span class="n">2</span><span><b>状態と経過時間</b><small>録音中は赤く点滅</small></span></li>
+        <li><span class="n">3</span><span><b>音量メーター</b><small>緑＝声が届いている</small></span></li>
+        <li><span class="n">4</span><span><b>全文表示</b><small>Apple Intelligence で要約</small></span></li>
+        <li><span class="n">5</span><span><b>設定</b><small>コンテキスト・指示・各機能のオンオフ</small></span></li>
+        <li><span class="n">6</span><span><b>蛍光ペンの色</b><small>要望・課題・宿題・数字</small></span></li>
+        <li><span class="n">7</span><span><b>☆ 重要</b><small>その発言に印を付ける</small></span></li>
+        <li><span class="n">8</span><span><b>写真</b><small>タップで拡大・補正・文字の取り込み</small></span></li>
+        <li><span class="n">9</span><span><b>メモ欄</b><small>手入力・音声入力。写真の説明にもなる</small></span></li>
+        <li><span class="n">10</span><span><b>録音開始 / 停止</b></span></li>
+        <li><span class="n">11</span><span><b>☆ 直前を重要に・📷 写真・文字スキャン</b></span></li>
+        <li><span class="n">12</span><span><b>送る</b><small>数字は未送信の件数</small></span></li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- ===== 音声認識 ===== -->
+  <section id="speech">
+    <h2><span class="ic" style="background:var(--red-tint);color:var(--red)"><svg width="18" height="18"><use href="#i-mic"/></svg></span>音声認識のしくみ</h2>
+    <p class="lead">Safari の <b>Web Speech API</b> が、iPhone の音声入力（Siri と同じ認識）を呼び出します。</p>
+    <div class="card">
+      <svg class="fig tall" viewBox="0 0 340 520" role="img" aria-label="マイクから Safari の Web Speech API、iOS の音声認識を経て、途中結果と確定結果が Live Scribe に届く。止まっても自動で聞き直す">
+        <defs>
+          <marker id="sa" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" class="s-ink3"/></marker>
+          <marker id="sb" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" class="s-acc"/></marker>
+          <marker id="sc" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" class="s-vio"/></marker>
+        </defs>
+        <g font-size="13" text-anchor="middle">
+          <!-- マイク -->
+          <rect x="8" y="8" width="110" height="120" rx="16" class="s-red-t"/>
+          <svg x="41" y="18" width="44" height="44" style="color:var(--red)"><use href="#i-mic"/></svg>
+          <text x="63" y="80" class="s-ink" font-weight="700">マイク</text>
+          <g fill="none" stroke="var(--red)" stroke-width="2.4" stroke-linecap="round"><path d="M24 104v6M32 98v18M40 101v12M48 95v24M56 100v14M64 96v22M72 101v12M80 98v18M88 102v10M96 99v16M104 103v8"/></g>
+          <!-- Safari -->
+          <rect x="142" y="8" width="190" height="120" rx="16" class="s-box" stroke-width="1.5"/>
+          <text x="237" y="32" class="s-ink" font-weight="700">Safari</text>
+          <rect x="156" y="44" width="162" height="72" rx="10" class="s-acc-t"/>
+          <text x="237" y="66" class="s-acc" font-weight="700">Web Speech API</text>
+          <text x="237" y="86" class="s-ink2" font-size="11.5" font-family="ui-monospace,monospace">lang = ja-JP</text>
+          <text x="237" y="103" class="s-ink2" font-size="11.5" font-family="ui-monospace,monospace">連続・途中結果あり</text>
+          <path d="M118 68H136" class="s-ink3s" stroke-width="2" marker-end="url(#sa)"/>
+          <!-- iOS -->
+          <path d="M222 132V168" class="s-vio-s flow" stroke-width="2" marker-end="url(#sc)"/>
+          <path d="M252 168V134" class="s-acc-s flow" stroke-width="2" marker-end="url(#sb)"/>
+          <text x="210" y="155" class="s-ink3" font-size="11" text-anchor="end">音声</text>
+          <text x="264" y="155" class="s-acc" font-size="11" text-anchor="start">文字</text>
+          <rect x="142" y="174" width="190" height="112" rx="16" class="s-vio-t"/>
+          <text x="237" y="200" class="s-vio" font-weight="700">iOS の音声認識</text>
+          <text x="237" y="222" class="s-ink2" font-size="12">Siri・音声入力と同じ</text>
+          <text x="237" y="246" class="s-ink3" font-size="11.5">端末内か Apple のサーバーかは</text>
+          <text x="237" y="263" class="s-ink3" font-size="11.5">iOS の設定と言語による</text>
+          <!-- 音声は保存しない -->
+          <g transform="translate(63 220)">
+            <circle r="28" class="s-red-t"/>
+            <svg x="-13" y="-13" width="26" height="26" style="color:var(--red)"><use href="#i-mic"/></svg>
+            <path d="M-17 -17L17 17" stroke="var(--red)" stroke-width="2.6" stroke-linecap="round"/>
+            <text y="50" class="s-ink2" font-size="12">音声は保存しない</text>
+          </g>
+          <!-- 結果 -->
+          <path d="M237 290V316" class="s-acc-s" stroke-width="2" marker-end="url(#sb)"/>
+          <rect x="8" y="320" width="324" height="192" rx="16" class="s-box" stroke-width="1.5"/>
+          <text x="24" y="346" class="s-ink" font-weight="700" text-anchor="start">Live Scribe に届く結果</text>
+          <rect x="24" y="360" width="292" height="36" rx="9" class="s-soft"/>
+          <text x="170" y="383" class="s-ink3 blink">話している途中 … 薄い文字で表示</text>
+          <path d="M170 400V418" class="s-ink3s" stroke-width="2" marker-end="url(#sa)"/>
+          <rect x="24" y="422" width="292" height="36" rx="9" class="s-grn-t"/>
+          <text x="170" y="445" class="s-grn" font-weight="700">区切りで確定 → 発言として保存</text>
+          <path d="M30 486c12 0 16-12 28-12s16 12 28 12 16-12 28-12 16 12 28 12" class="s-acc-s" stroke-width="2" fill="none" stroke-linecap="round"/>
+          <circle cx="142" cy="486" r="3.5" class="s-acc"/>
+          <text x="316" y="490" class="s-ink2" font-size="12" text-anchor="end">止まっても自動で聞き直す</text>
+        </g>
+      </svg>
+    </div>
+    <div class="grid2" style="margin-top:12px">
+      <div class="card">
+        <h3 style="margin-top:0">止まったら知らせる</h3>
+        <svg class="fig tall" viewBox="0 0 300 92" role="img" aria-label="声が届いているのに文字が増えないと警告">
+          <g fill="none" stroke-width="3" stroke-linecap="round" style="stroke:var(--green)">
+            <path d="M14 60v-8M24 60v-22M34 60v-14M44 60v-30M54 60v-18M64 60v-26M74 60v-12M84 60v-24M94 60v-16M104 60v-28"/>
+          </g>
+          <text x="60" y="84" text-anchor="middle" font-size="12" class="s-ink3">声は届いている</text>
+          <rect x="132" y="18" width="160" height="50" rx="10" class="s-org-t"/>
+          <text x="212" y="40" text-anchor="middle" font-size="13" class="s-org" font-weight="700">20秒 文字が増えない</text>
+          <text x="212" y="58" text-anchor="middle" font-size="12" class="s-org">→ 画面で警告</text>
+        </svg>
+      </div>
+      <div class="card">
+        <h3 style="margin-top:0">精度を上げるコツ</h3>
+        <ul style="margin:0;padding-left:1.2em;font-size:14px;color:var(--ink-2)">
+          <li>iPhone を話す人の近くに</li>
+          <li>商談の<b>コンテキスト</b>に固有名詞を書く（Claude が誤変換を直す）</li>
+          <li>録音中は画面を点けたまま（自動）</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== 印とメモ ===== -->
+  <section id="marks">
+    <h2><span class="ic" style="background:var(--orange-tint);color:var(--orange)"><svg width="18" height="18"><use href="#i-star"/></svg></span>蛍光ペン・重要・メモ</h2>
+    <p class="lead">言い回しから自動で色が付きます。大事なところは ☆ で。</p>
+    <div class="card hlrows">
+      <div class="hlrow"><span class="k"><i class="m-req"></i>要望</span><span>承認は二段階に<mark class="m-req">したい</mark></span></div>
+      <div class="hlrow"><span class="k"><i class="m-issue"></i>課題</span><span>経理が<mark class="m-issue">手入力で転記</mark>している</span></div>
+      <div class="hlrow"><span class="k"><i class="m-todo"></i>宿題・次の一手</span><span><mark class="m-todo">来週までに</mark>画面イメージを共有</span></div>
+      <div class="hlrow"><span class="k"><i class="m-num"></i>数字・期限</span><span>予算は<mark class="m-num">300万円</mark>、<mark class="m-num">4月</mark>稼働</span></div>
+    </div>
+    <div class="card">
+      <div class="chips">
+        <span class="chip"><svg width="15" height="15" style="color:var(--orange)"><use href="#i-star"/></svg>発言の右 … その発言に印</span>
+        <span class="chip"><svg width="15" height="15" style="color:var(--orange)"><use href="#i-star"/></svg>下のバー … 直前の発言に印</span>
+        <span class="chip"><svg width="15" height="15"><use href="#i-note"/></svg>メモ … 確度の高い情報</span>
+      </div>
+      <p class="cap" style="text-align:left">重要とメモは、送るファイルで別の欄（important / notes）に分けて Claude に優先してもらいます。</p>
+    </div>
+  </section>
+
+  <!-- ===== AI メモ ===== -->
+  <section id="ai">
+    <h2><span class="ic" style="background:var(--violet-tint);color:var(--violet)"><svg width="18" height="18"><use href="#i-spark"/></svg></span>AI メモ（聞き逃しのキャッチアップ）</h2>
+    <p class="lead">約2分ごとに話題の見出しを付け、原文の発言をそのまま引用します。</p>
+    <div class="grid2">
+      <div class="shot"><div class="phone sm"><img src="docs/screenshots/02-ai-memo.png" alt="AI メモ"></div></div>
+      <div class="card">
+        <svg class="fig tall" viewBox="0 0 300 330" role="img" aria-label="発言が600字たまると、端末内の LLM が見出しを付ける">
+          <defs><marker id="ah4" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" class="s-ink3"/></marker></defs>
+          <g font-size="12">
+            <rect x="20" y="14" width="260" height="22" rx="6" class="s-soft"/><rect x="20" y="42" width="220" height="22" rx="6" class="s-soft"/>
+            <rect x="20" y="70" width="245" height="22" rx="6" class="s-soft"/><rect x="20" y="98" width="190" height="22" rx="6" class="s-soft"/>
+            <text x="150" y="140" text-anchor="middle" class="s-ink3">発言が約600字（約2分）たまる</text>
+            <path d="M150 148V172" class="s-ink3s" stroke-width="2" marker-end="url(#ah4)"/>
+            <rect x="60" y="178" width="180" height="58" rx="14" class="s-vio-t"/>
+            <svg x="74" y="191" width="32" height="32" style="color:var(--violet)"><use href="#i-chip"/></svg>
+            <text x="166" y="203" text-anchor="middle" class="s-vio" font-weight="700">端末内の LLM</text>
+            <text x="166" y="222" text-anchor="middle" class="s-ink2" font-size="11">WebGPU・LFM2 350M</text>
+            <path d="M150 242V266" class="s-ink3s" stroke-width="2" marker-end="url(#ah4)"/>
+            <rect x="20" y="272" width="260" height="48" rx="10" class="s-box"/>
+            <text x="34" y="292" class="s-ink" font-weight="700">承認フローとシステム連携</text>
+            <text x="34" y="310" class="s-ink2" font-size="11">「承認は課長と部長の二段階に…」</text>
+          </g>
+        </svg>
+      </div>
+    </div>
+    <div class="chips" style="margin-top:12px">
+      <span class="chip">設定 → AI メモ をオン</span><span class="chip">初回だけ約255MB 取得</span><span class="chip">iOS 26 以降</span><span class="chip">話題をタップ → その場所へ</span><span class="chip">停止時に商談名を自動で付ける</span>
+    </div>
+  </section>
+
+  <!-- ===== 写真 ===== -->
+  <section id="photo">
+    <h2><span class="ic" style="background:var(--green-tint);color:var(--green)"><svg width="18" height="18"><use href="#i-cam"/></svg></span>写真と台形補正</h2>
+    <p class="lead">撮った時刻の位置に挟まります。斜めに撮っても正面に直せます。</p>
+    <div class="card">
+      <svg class="fig tall" viewBox="0 0 340 128" role="img" aria-label="斜めの写真から四隅を見つけ、正面から見た形に直す">
+        <defs><marker id="pa" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M0 0L10 5L0 10z" class="s-ink3"/></marker></defs>
+        <g font-size="12" text-anchor="middle">
+          <rect x="4" y="8" width="92" height="72" rx="8" fill="#8c7a66"/>
+          <path d="M18 24L80 18L86 66L22 72z" fill="#fbfaf6"/><path d="M18 24L80 18L81 27L19 33z" fill="#1d2b4f"/>
+          <text x="50" y="100" class="s-ink2">斜めの写真</text>
+          <path d="M100 44H118" class="s-ink3s" stroke-width="2" marker-end="url(#pa)"/>
+          <rect x="124" y="8" width="92" height="72" rx="8" fill="#8c7a66"/>
+          <path d="M138 24L200 18L206 66L142 72z" fill="#fbfaf6" stroke="var(--accent)" stroke-width="2"/>
+          <g class="s-acc"><circle cx="138" cy="24" r="4.5"/><circle cx="200" cy="18" r="4.5"/><circle cx="206" cy="66" r="4.5"/><circle cx="142" cy="72" r="4.5"/></g>
+          <text x="170" y="100" class="s-ink2">四隅を検出</text>
+          <path d="M220 44H238" class="s-ink3s" stroke-width="2" marker-end="url(#pa)"/>
+          <rect x="244" y="12" width="92" height="64" rx="5" fill="#fbfaf6" stroke="var(--line-strong)"/>
+          <rect x="244" y="12" width="92" height="11" rx="5" fill="#1d2b4f"/>
+          <rect x="251" y="30" width="17" height="9" rx="2" fill="#dbe7ff"/><rect x="272" y="30" width="17" height="9" rx="2" fill="#ffe1d6"/><rect x="293" y="30" width="17" height="9" rx="2" fill="#dff3e4"/><rect x="314" y="30" width="17" height="9" rx="2" fill="#dff3e4"/>
+          <g fill="#999"><rect x="251" y="47" width="54" height="3" rx="1.5"/><rect x="251" y="55" width="46" height="3" rx="1.5"/><rect x="251" y="63" width="50" height="3" rx="1.5"/></g>
+          <text x="290" y="100" class="s-ink2">正面の形に</text>
+          <text x="170" y="122" class="s-ink3" font-size="11">元の写真も残るので、いつでもやり直せる</text>
+        </g>
+      </svg>
+    </div>
+    <div class="grid2" style="margin-top:12px">
+      <div class="shot"><div class="phone sm"><img src="docs/screenshots/03-perspective-fix.png" alt="範囲を直す"></div><p class="cap">外れたら「範囲を直す」で角をドラッグ。<br>指の上にルーペが出ます</p></div>
+      <div>
+        <ol class="steps">
+          <li><span>設定 → <b>写真の台形補正</b> をオン（初回だけ約10MB）</span></li>
+          <li><span><svg width="15" height="15" style="display:inline;vertical-align:-2px"><use href="#i-cam"/></svg> で撮る → 裏で自動補正</span></li>
+          <li><span>「<b>範囲を確認</b>」が付いたら、写真をタップして <b>範囲を直す</b></span></li>
+          <li><span><b>補正する</b> / <b>元に戻す</b>（元の写真は残ります）</span></li>
+        </ol>
+        <p class="cap" style="text-align:left">撮る前にメモ欄へ書いた文字は、その写真の説明になります。</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== 文字スキャン ===== -->
+  <section id="scan">
+    <h2><span class="ic" style="background:var(--green-tint);color:var(--green)"><svg width="18" height="18"><use href="#i-scan"/></svg></span>文字スキャン（名刺・スライド・ホワイトボード）</h2>
+    <p class="lead">iPhone のテキスト認識で、カメラから文字を直接取り込みます。</p>
+    <div class="card howto">
+      <div class="row">
+        <svg viewBox="0 0 132 92" role="img" aria-label="空の欄をタップすると、ペーストと自動入力のメニューが出る">
+          <rect x="2" y="2" width="128" height="34" rx="9" fill="#2b2b2f"/>
+          <text x="34" y="24" fill="#fff" font-size="11.5" text-anchor="middle">ペースト</text>
+          <path d="M64 9v20" stroke="#555"/>
+          <rect x="68" y="6" width="58" height="26" rx="7" fill="var(--accent)"/>
+          <text x="97" y="24" fill="#fff" font-size="11.5" text-anchor="middle" font-weight="700">自動入力›</text>
+          <path d="M58 36l7 8 7-8z" fill="#2b2b2f"/>
+          <rect x="2" y="50" width="128" height="38" rx="9" class="s-soft"/>
+          <rect x="14" y="60" width="2" height="18" class="s-acc"/>
+        </svg>
+        <div class="t"><b><span class="num">1</span>空の欄をタップ</b><small>出てきたメニューの［自動入力］</small></div>
+      </div>
+      <div class="row">
+        <svg viewBox="0 0 132 92" role="img" aria-label="自動入力の中のテキストをスキャンを選ぶ">
+          <rect x="2" y="2" width="128" height="88" rx="11" fill="#2b2b2f"/>
+          <text x="14" y="24" fill="#bbb" font-size="11.5">連絡先</text>
+          <path d="M10 33H122" stroke="#444"/>
+          <text x="14" y="50" fill="#bbb" font-size="11.5">パスワード</text>
+          <rect x="6" y="58" width="120" height="28" rx="7" fill="var(--accent)"/>
+          <svg x="10" y="64" width="16" height="16" style="color:#fff"><use href="#i-scan"/></svg>
+          <text x="29" y="77" fill="#fff" font-size="10.5" font-weight="700">テキストをスキャン</text>
+        </svg>
+        <div class="t"><b><span class="num">2</span>［テキストをスキャン］</b><small>カメラが開きます</small></div>
+      </div>
+      <div class="row">
+        <svg viewBox="0 0 132 92" role="img" aria-label="文字が黄色い枠で囲まれたら挿入">
+          <rect x="2" y="2" width="128" height="88" rx="11" fill="#1b1b1d"/>
+          <rect x="18" y="12" width="96" height="52" rx="5" fill="#f4f1ea"/>
+          <g fill="#333"><rect x="26" y="22" width="56" height="6" rx="2"/><rect x="26" y="35" width="74" height="4" rx="2"/><rect x="26" y="45" width="64" height="4" rx="2"/></g>
+          <rect x="21" y="16" width="90" height="38" rx="4" fill="none" stroke="#f5c400" stroke-width="2.5"/>
+          <rect x="74" y="68" width="48" height="17" rx="8.5" fill="#f5c400"/>
+          <text x="98" y="80.5" text-anchor="middle" font-size="10.5" font-weight="700" fill="#1b1b1d">挿入</text>
+        </svg>
+        <div class="t"><b><span class="num">3</span>黄色い枠 →［挿入］</b><small>名刺・スライド・ホワイトボードに向ける</small></div>
+      </div>
+      <div class="note">3分以内に撮った写真がある → その写真の文字に<br>ない → 「スキャン」として発言の間に挟む</div>
+    </div>
+    <div class="grid2" style="margin-top:12px">
+      <div class="shot"><div class="phone sm"><img src="docs/screenshots/05-text-scan.png" alt="文字スキャン"></div><p class="cap">［続けてスキャン］で何か所でも</p></div>
+      <div class="shot"><div class="phone sm"><img src="docs/screenshots/04-photo-text.png" alt="写真の文字"></div><p class="cap">写真 →「写真の文字を取り込む」。<br>写真の文字を長押しでコピー → 貼り付けも可</p></div>
+    </div>
+    <p class="cap">取り込んだ文字は検索と書き出し（&lt;ocr&gt;）に使われます。認識は iPhone の中で行われます。</p>
+  </section>
+
+  <!-- ===== 検索 ===== -->
+  <section id="search">
+    <h2><span class="ic" style="background:var(--accent-tint);color:var(--accent)"><svg width="18" height="18"><use href="#i-search"/></svg></span>検索とジャンプ</h2>
+    <p class="lead">過去の商談を探して、その発言の場所へ飛べます。</p>
+    <div class="grid2">
+      <div class="shot"><div class="phone sm"><img src="docs/screenshots/06-history-search.png" alt="履歴の検索"></div><p class="cap">① 履歴 → 🔍 で検索</p></div>
+      <div class="shot"><div class="phone sm"><img src="docs/screenshots/07-jump-to-hit.png" alt="当たった箇所へ移動"></div><p class="cap">② 結果をタップ → 当たった発言へ。<br>▲▼ で次の箇所、× で閉じる</p></div>
+    </div>
+    <div class="card" style="margin-top:12px">
+      <h3 style="margin-top:0">表記ゆれをそろえて探す</h3>
+      <div class="eq">
+        <div><b>スマホ</b>＝<b>すまほ</b><span>カタカナ・ひらがな</span></div>
+        <div><b>ＣＲＭ</b>＝<b>crm</b><span>全角・大文字</span></div>
+        <div><b>承認 期限</b><span>スペース区切り＝両方を含む</span></div>
+      </div>
+      <h3>読み検索（設定でオン・約18MB）</h3>
+      <div class="eq">
+        <div style="background:var(--accent-tint)"><b>経費</b>→<b style="color:var(--accent)">ケイヒ</b>←<b>軽費</b><span>誤変換も「読み一致」</span></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== Claude へ ===== -->
+  <section id="send">
+    <h2><span class="ic" style="background:var(--orange-tint);color:#d97757"><svg width="18" height="18"><use href="#i-claude"/></svg></span>Claude に渡す</h2>
+    <p class="lead">「送る」で、前回からの分を1つの zip にします。</p>
+    <div class="card">
+      <svg class="fig tall" viewBox="0 0 340 470" role="img" aria-label="送るを押すと zip ができ、ファイルアプリから Slack や Claude に共有する">
+        <defs><marker id="ca" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" class="s-ink3"/></marker></defs>
+        <g font-size="13">
+          <rect x="110" y="6" width="120" height="44" rx="22" class="s-acc"/>
+          <svg x="126" y="16" width="24" height="24" style="color:#fff"><use href="#i-send"/></svg>
+          <text x="186" y="33" text-anchor="middle" fill="#fff" font-weight="700" font-size="15">送る</text>
+          <path d="M170 54V74" class="s-ink3s" stroke-width="2" marker-end="url(#ca)"/>
+          <rect x="20" y="80" width="300" height="242" rx="16" class="s-box" stroke-width="1.5"/>
+          <svg x="36" y="92" width="22" height="22" style="color:var(--ink-2)"><use href="#i-zip"/></svg>
+          <text x="64" y="108" class="s-ink" font-weight="700">live-scribe_….zip</text>
+          <g font-family="ui-monospace,monospace" font-size="12">
+            <rect x="36" y="122" width="268" height="25" rx="6" class="s-soft"/><text x="46" y="139" class="s-ink2">&lt;context&gt;     商談の前提</text>
+            <rect x="36" y="151" width="268" height="25" rx="6" class="s-grn-t"/><text x="46" y="168" class="s-grn">&lt;notes&gt;       メモ・スキャン</text>
+            <rect x="36" y="180" width="268" height="25" rx="6" class="s-org-t"/><text x="46" y="197" class="s-org">&lt;important&gt;   ☆の発言</text>
+            <rect x="36" y="209" width="268" height="25" rx="6" class="s-acc-t"/><text x="46" y="226" class="s-acc">&lt;images&gt;      写真＋文字</text>
+            <rect x="36" y="238" width="268" height="25" rx="6" class="s-soft"/><text x="46" y="255" class="s-ink2">&lt;transcript&gt;  全発言</text>
+            <rect x="36" y="267" width="268" height="25" rx="6" class="s-vio-t"/><text x="46" y="284" class="s-vio">&lt;instructions&gt; 指示</text>
+          </g>
+          <text x="46" y="311" class="s-ink3" font-size="12">＋ images/ フォルダに写真</text>
+          <path d="M170 326V346" class="s-ink3s" stroke-width="2" marker-end="url(#ca)"/>
+          <rect x="20" y="352" width="140" height="110" rx="16" class="s-soft"/>
+          <text x="90" y="398" text-anchor="middle" class="s-ink" font-weight="700">ファイル App</text>
+          <text x="90" y="420" text-anchor="middle" class="s-ink2" font-size="12">ダウンロード</text>
+          <text x="90" y="438" text-anchor="middle" class="s-ink2" font-size="12">→ 共有</text>
+          <path d="M164 407H176" class="s-ink3s" stroke-width="2" marker-end="url(#ca)"/>
+          <rect x="182" y="352" width="138" height="110" rx="16" class="s-org-t"/>
+          <svg x="233" y="364" width="36" height="36" style="color:#d97757"><use href="#i-claude"/></svg>
+          <text x="251" y="424" text-anchor="middle" class="s-ink" font-weight="700">Claude</text>
+          <text x="251" y="444" text-anchor="middle" class="s-ink2" font-size="12">Slack 経由でも</text>
+        </g>
+      </svg>
+    </div>
+    <div class="grid2" style="margin-top:12px">
+      <div class="shot"><div class="phone sm"><img src="docs/screenshots/08-full-text.png" alt="全文表示"></div><p class="cap">全文表示 → 全文を選択 →［作文ツール］→［要約］<br>Apple Intelligence が端末内で要約</p></div>
+      <div class="shot"><div class="phone sm"><img src="docs/screenshots/09-settings.png" alt="設定"></div><p class="cap">設定で、この商談のコンテキストと<br>Claude への指示を編集</p></div>
+    </div>
+  </section>
+
+  <!-- ===== データとプライバシー ===== -->
+  <section id="privacy">
+    <h2><span class="ic" style="background:var(--green-tint);color:var(--green)"><svg width="18" height="18"><use href="#i-lock"/></svg></span>データはどこにあるか</h2>
+    <p class="lead">商談のデータはこの iPhone の Safari の中だけ。サーバーはありません。</p>
+    <div class="card">
+      <svg class="fig tall" viewBox="0 0 340 500" role="img" aria-label="iPhone の中に文字起こし、写真、メモ、AI が入っている。外への通信は音声認識と初回のダウンロードだけ">
+        <defs><marker id="da" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" class="s-ink3"/></marker></defs>
+        <g font-size="13" text-anchor="middle">
+          <rect x="8" y="8" width="324" height="300" rx="30" class="s-grn-t"/>
+          <rect x="8" y="8" width="324" height="300" rx="30" fill="none" stroke="var(--green)" stroke-width="2" stroke-dasharray="6 6"/>
+          <svg x="84" y="23" width="18" height="18" style="color:var(--green)"><use href="#i-lock"/></svg>
+          <text x="180" y="38" class="s-grn" font-weight="700" font-size="14">この iPhone（Safari）</text>
+          <rect x="24" y="54" width="140" height="104" rx="14" class="s-box"/>
+          <text x="94" y="80" class="s-ink" font-weight="700">保存</text>
+          <text x="94" y="102" class="s-ink2" font-size="12">文字起こし・メモ</text>
+          <text x="94" y="120" class="s-ink2" font-size="12">写真・写真の文字</text>
+          <text x="94" y="142" class="s-ink3" font-size="11" font-family="ui-monospace,monospace">IndexedDB</text>
+          <rect x="176" y="54" width="140" height="104" rx="14" class="s-box"/>
+          <text x="246" y="80" class="s-ink" font-weight="700">処理</text>
+          <text x="246" y="102" class="s-ink2" font-size="12">AI メモ（LLM）</text>
+          <text x="246" y="120" class="s-ink2" font-size="12">台形補正・読み</text>
+          <text x="246" y="142" class="s-ink3" font-size="11" font-family="ui-monospace,monospace">Web Worker</text>
+          <rect x="24" y="170" width="292" height="50" rx="12" class="s-box"/>
+          <text x="170" y="191" class="s-ink2" font-size="12">「送る」で zip を作るだけ</text>
+          <text x="170" y="209" class="s-ink2" font-size="12">（あなたが共有するまで外に出ない）</text>
+          <g transform="translate(108 260)">
+            <circle r="20" class="s-red-t"/>
+            <svg x="-11" y="-11" width="22" height="22" style="color:var(--red)"><use href="#i-mic"/></svg>
+            <path d="M-13 -13L13 13" stroke="var(--red)" stroke-width="2.4" stroke-linecap="round"/>
+            <text x="76" y="5" class="s-ink2" font-size="12.5">音声は保存しない</text>
+          </g>
+          <!-- 外 -->
+          <path d="M90 312V352" class="s-ink3s flow" stroke-width="2" marker-end="url(#da)"/>
+          <path d="M250 352V314" class="s-ink3s" stroke-width="2" marker-end="url(#da)"/>
+          <rect x="8" y="358" width="160" height="134" rx="16" class="s-vio-t"/>
+          <text x="88" y="390" class="s-vio" font-weight="700">Apple の</text>
+          <text x="88" y="408" class="s-vio" font-weight="700">音声認識</text>
+          <text x="88" y="434" class="s-ink2" font-size="12">文字にするための</text>
+          <text x="88" y="452" class="s-ink2" font-size="12">音声</text>
+          <rect x="176" y="358" width="156" height="134" rx="16" class="s-soft"/>
+          <text x="254" y="390" class="s-ink" font-weight="700">初回だけ</text>
+          <text x="254" y="408" class="s-ink" font-weight="700">ダウンロード</text>
+          <text x="254" y="434" class="s-ink2" font-size="11.5">AI モデル・辞書</text>
+          <text x="254" y="452" class="s-ink2" font-size="11.5">OpenCV</text>
+          <text x="254" y="474" class="s-ink3" font-size="11">以後はキャッシュ</text>
+        </g>
+      </svg>
+    </div>
+    <p class="cap">Safari の「Webサイトデータを削除」やプライベートブラウズでは、保存した商談が消えます。大事な商談は「送る」で残してください。</p>
+  </section>
+
+  <!-- ===== メモリ ===== -->
+  <section id="memory">
+    <h2><span class="ic" style="background:var(--orange-tint);color:var(--orange)"><svg width="18" height="18"><use href="#i-chip"/></svg></span>メモリのこと</h2>
+    <p class="lead">iPhone では重いモデルを <b>同時に1つだけ</b> 載せます。</p>
+    <div class="card">
+      <div class="bars">
+        <div class="bar"><div class="b"><i style="width:100%;background:var(--violet-tint)"></i><span style="color:var(--violet)">AI メモ（LLM）</span></div><b>約255MB</b></div>
+        <div class="bar"><div class="b"><i style="width:7%;background:var(--accent)"></i><span>読み検索の辞書</span></div><b>約18MB</b></div>
+        <div class="bar"><div class="b"><i style="width:4%;background:var(--green)"></i><span>台形補正</span></div><b>約10MB</b></div>
+      </div>
+      <div class="swap">
+        <div class="x" style="background:var(--violet-tint);color:var(--violet)"><b>録音中</b><br>AI メモを優先</div>
+        <svg width="28" height="20" viewBox="0 0 28 20" fill="none" stroke="var(--ink-3)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h18l-4-4M24 14H6l4 4"/></svg>
+        <div class="x" style="background:var(--green-tint);color:var(--green)"><b>写真の補正</b><br>LLM を外して実行</div>
+      </div>
+      <p class="cap">録音を始めると AI メモを読み込み直します。</p>
+    </div>
+    <div class="card">
+      <div class="chips">
+        <span class="chip"><span style="width:7px;height:7px;border-radius:50%;background:currentColor"></span>255MB … ヘッダーの数字＝載っているモデルの合計</span>
+        <span class="chip">タップ → メモリと処理の状態</span>
+        <span class="chip">「外す」でメモリを空ける</span>
+        <span class="chip">落ちたら次回に原因を表示</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== 困ったとき ===== -->
+  <section id="faq">
+    <h2><span class="ic" style="background:var(--orange-tint);color:var(--orange)"><svg width="18" height="18"><use href="#i-help"/></svg></span>困ったとき</h2>
+    <div class="faq">
+      <details open><summary>文字にならない</summary><p>設定 → アプリ → Safari → マイク を許可。設定 → Siri で音声入力をオン。画面に警告が出たら「停止」→「録音再開」。</p></details>
+      <details><summary>［テキストをスキャン］が出ない</summary><p>欄を空にしてタップ →［自動入力］の中にあります。ないときは 設定 → 一般 → 言語と地域 →「テキスト認識表示」をオン。</p></details>
+      <details><summary>ホーム画面のアイコンから開くと録音できない</summary><p>「Webアプリとして開く」をオフにして追加し直してください。画面の「Safari で開く」からも戻れます。</p></details>
+      <details><summary>ページが勝手に読み込み直された</summary><p>メモリ不足の可能性があります。次に開いたときに原因が出ます。AI メモのモデルを軽くするか、使わない機能をオフに。</p></details>
+      <details><summary>AI メモが動かない</summary><p>iOS 26 以降の Safari（WebGPU）が必要です。初回はモデルのダウンロードに時間がかかります。</p></details>
+      <details><summary>送ったファイルはどこ？</summary><p>ファイル App → ダウンロード。そこから共有で Slack や Claude へ。</p></details>
+    </div>
+  </section>
+
+  <!-- ===== 設定の早見表 ===== -->
+  <section id="settings">
+    <h2><span class="ic" style="background:var(--accent-tint);color:var(--accent)"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><path d="M4 7h10M18 7h2M4 17h4M12 17h8"/><circle cx="16" cy="7" r="2"/><circle cx="10" cy="17" r="2"/></svg></span>設定の早見表</h2>
+    <div class="card">
+      <table class="tbl">
+        <tr><td>コンテキスト</td><td>社名・固有名詞。誤変換の補正に。<span class="kbd">表記（よみ）</span> で読みも教えられる</td></tr>
+        <tr><td>Claude への指示</td><td>送るファイルの最後に付く。既定に戻せる</td></tr>
+        <tr><td>蛍光ペン</td><td>色付けのオン・オフ</td></tr>
+        <tr><td>音量メーター</td><td>うまく録音できないときはオフに</td></tr>
+        <tr><td>AI メモ</td><td>見出し付け。モデルを選べる</td></tr>
+        <tr><td>読み検索</td><td>同音の誤変換も検索で拾う</td></tr>
+        <tr><td>写真の台形補正</td><td>自動で正面に直す。元画像を消す設定も</td></tr>
+        <tr><td>いつも zip で</td><td>オフなら写真がない回は .txt</td></tr>
+      </table>
+    </div>
+  </section>
+
+  <p class="foot"><a href="./">アプリに戻る</a> · <a href="https://github.com/tubone24/live_scribe">GitHub</a></p>
+</main>
+</body>
+</html>

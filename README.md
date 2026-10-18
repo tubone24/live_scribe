@@ -4,7 +4,7 @@
 
 **Real-time meeting transcription that runs entirely in iPhone Safari.** Talk with your customer, and Live Scribe keeps a running transcript, highlights what matters, captures whiteboards and business cards, and packs everything into a file that Claude can read in one go. You can then build a prototype while the meeting is still going.
 
-**Try it:** open **https://tubone24.github.io/live_scribe/** in Safari on your iPhone. There's nothing to install and no account to create.
+**Try it:** open **https://tubone24.github.io/live_scribe/** in Safari on your iPhone. There's nothing to install and no account to create. A visual user guide (in Japanese) is built into the app: [help.html](https://tubone24.github.io/live_scribe/help.html).
 
 - 🎙️ **Live transcript**: uses the built-in speech recognition (Web Speech API, Japanese), with no server of its own
 - 🖍️ **Auto highlights**: marks requests, pain points, to-dos, and numbers/deadlines as people speak
