@@ -1,31 +1,223 @@
 # Live Scribe
 
-iPhone の Safari で動く、商談向けのリアルタイム文字起こしページです。
+![Live Scribe on iPhone](docs/screenshots/hero.png)
 
-- ブラウザ標準の音声認識（Web Speech API, `ja-JP`）で文字起こしし、画面に流し続けます
-- 音声は保存しません。テキストと写真はその端末のブラウザ内（IndexedDB）にのみ保存します
-- 左上のボタンからドロワーを開き、「新しい商談」の作成、過去の商談の再開・検索・削除ができます。検索は商談名・コンテキスト・話題の見出し・発言・メモ・写真の説明・写真の文字が対象で、全角/半角・大文字/小文字・カタカナ/ひらがなの違いをそろえ、スペース区切りで AND 検索します。設定の「読み検索（実験）」をオンにすると、端末内の形態素解析（kuromoji.js、辞書は初回のみ約18MBを取得してキャッシュ）で読みも照合し、同音異義の誤変換（経費／軽費など）も見つけます。表記一致が上位に並び、読みだけの一致には「読み一致」が付きます。検索結果をタップすると、その商談の当たった発言まで移動し、画面上部のバー（▲▼）で当たった箇所を順に確認できます。社名・製品名などをコンテキストに「表記（よみ）」の形で書くと、その読みを優先します
-- 商談名は画面上部の商談名をタップして編集できます。AI メモがオンなら、録音を止めたときに商談名を自動で付けます（手で付けた名前は上書きしません）
-- 「送る」で前回送信以降の分を zip（テキスト＋`images/`）でダウンロードします。テキストには写真のファイル名と撮影位置が入るので、Claude はメモ・文字起こし・写真をまとめて読めます。設定でオフにすると写真がない回は .txt になります（クリップボードは使いません）
-- 出力は Claude が読みやすい形式です：データを XML タグ（context / notes / important / images / transcript）で区切り、末尾に指示（instructions）を付けます。商談名・コンテキスト・指示は設定で編集できます
-- カメラボタンで撮った写真（ホワイトボード・帳票・既存画面など）を、撮影時刻の位置に挟み込みます。メモ欄に入力中の文字は写真の説明になります
-- 全文表示（ヘッダーの文書アイコン）で全文を選択し、Apple Intelligence の作文ツールで要約できます。`reader.html` は Safari のリーダー表示（要約）用のページです
-- 音量メーター：録音中にマイクの音量を表示し、声は届いているのに文字起こしが止まっているときに知らせます
-- 蛍光ペン：要望・課題・宿題・数字/期限の言い回しを含む句にマーカーを引きます（ルールベース）
-- AI メモ（実験）：聞き逃したときのキャッチアップ用です。端末内の小型 LLM（transformers.js + WebGPU。既定は LFM2 350M）が約2分ごとの会話の区間に「話題の見出し」を付け、その区間の代表的な発言を原文のまま添えて新しい順に並べます。モデルは初回のみ Hugging Face からダウンロードしてブラウザにキャッシュし、文字起こしは端末の外に出ません。iOS 26 以降の Safari が必要です
-- 録音中は Wake Lock API で画面を点けたままにします
-- 写真の台形補正（実験）：撮った写真から資料・スライドの四隅を見つけ（OpenCV.js）、正面から撮ったように補正します。元の写真も残し、写真をタップ →「範囲を直す」で四隅をドラッグして直せます（拡大ルーペ付き）
-- 文字スキャン：カメラの隣の「文字スキャン」ボタンから、iPhone のテキスト認識（入力欄のメニューの［自動入力］→［テキストをスキャン］）で資料・名刺・ホワイトボードの文字を直接取り込みます。直前（3分以内）に撮った写真があれば、その写真の文字として保存します。撮った写真の文字は、写真をタップ →「写真の文字を取り込む」から、スキャンするか、写真の文字を長押しでコピーして貼り付けます。取り込んだ文字は履歴の検索と書き出し（`<images>` 内の `<ocr>`）に使われます。認識は iPhone の中で行われ、モデルのダウンロードもありません
-- 台形補正の処理は Web Worker で1件ずつ順番に行い、AI メモの LLM とは同時に動かしません。iPhone では使い終わった Worker を 60 秒後に止めてメモリを返します
+**Real-time meeting transcription that runs entirely in iPhone Safari.** Talk with your customer, and Live Scribe keeps a running transcript, highlights what matters, captures whiteboards and business cards, and packs everything into a file that Claude can read in one go. You can then build a prototype while the meeting is still going.
 
-## 使い方
+**Try it:** open **https://tubone24.github.io/live_scribe/** in Safari on your iPhone. There's nothing to install and no account to create.
 
-1. iPhone の Safari で開く
-2. 設定 > アプリ > Safari > マイク を許可、Siri（音声入力）を有効にしておく
-3. 「録音開始」→ 適宜「送る」→「ファイル」アプリ > ダウンロード からファイルを開き、共有で Slack に送る
+- 🎙️ **Live transcript**: uses the built-in speech recognition (Web Speech API, Japanese), with no server of its own
+- 🖍️ **Auto highlights**: marks requests, pain points, to-dos, and numbers/deadlines as people speak
+- 🧠 **On-device AI memo**: a small LLM in the browser gives each stretch of conversation a topic heading, so you can catch up on what you missed
+- 📸 **Photos and text scanning**: perspective-corrects whiteboard photos and captures text from the camera with the iPhone's own text recognition
+- 🔎 **Search and jump**: searches all past meetings, then jumps straight to the moment a keyword was said
+- 📦 **One-tap hand-off to Claude**: exports a zip with an XML-tagged transcript, your notes, photos, and instructions
+- 🔒 **Private by design**: audio is never stored, and text and photos stay in the browser on your phone (IndexedDB)
 
-## ホーム画面に追加する
+> The UI is in Japanese and the speech recognition is set to `ja-JP`. The screenshots below use a sample meeting about digitizing expense reports.
 
-Safari の共有メニュー →「ホーム画面に追加」でアイコンを置けます。`display: browser` にしているので、アイコンから開いても Safari で開きます。
+---
 
-- 追加画面に「Webアプリとして開く」の切り替えが出る場合は**オフ**にしてください。オンにすると独立したアプリ画面で開き、音声認識が動かないことがあるほか、保存データも Safari とは別になります（その場合は画面に案内と「Safari で開く」リンクが出ます）
+## Features
+
+### Live transcript with highlights
+
+<table>
+<tr>
+<td width="50%"><img src="docs/screenshots/01-live-transcript.png" alt="Live transcript with highlights"></td>
+<td>
+
+Text streams in as people speak. The words still being recognized appear in a faded shimmer, and each line is final once the speaker pauses.
+
+- **Highlighter** (rule-based): 🟨 requests, 🟥 pain points, 🟩 to-dos and next steps, 🟦 numbers and deadlines
+- **☆ Star** the line that was just said with one tap. Starred lines are listed separately in the export.
+- **Notes**: type (or dictate) into the bottom field. A note written right before taking a photo becomes that photo's caption.
+- **Mic level meter** in the header. If your voice is reaching the mic but transcription has stopped, the app warns you.
+- **The screen stays on** while recording (Wake Lock), shown by the small green sun icon.
+
+</td>
+</tr>
+</table>
+
+### On-device AI catch-up memo
+
+<table>
+<tr>
+<td width="50%"><img src="docs/screenshots/02-ai-memo.png" alt="AI memo panel"></td>
+<td>
+
+About every two minutes of conversation (≈600 characters), a small LLM running **in the browser** (transformers.js + WebGPU, LFM2 350M by default) writes a topic heading. Under each heading it quotes the most representative lines **word for word**, so nothing is paraphrased away.
+
+- Tap a topic to jump to where it started.
+- When you stop recording, the meeting gets an automatic title. A title you typed yourself is never overwritten.
+- The model is downloaded once from Hugging Face and cached in the browser, and the transcript never leaves the device.
+- Requires Safari on iOS 26 or later. Turn it on in Settings → AI メモ.
+
+</td>
+</tr>
+</table>
+
+### Photos with perspective correction
+
+<table>
+<tr>
+<td width="50%"><img src="docs/screenshots/03-perspective-fix.png" alt="Perspective correction editor"></td>
+<td>
+
+The 📷 button inserts a photo at the moment it was taken in the transcript. It works well for whiteboards, handouts, slides, and existing screens.
+
+With **perspective correction** turned on (OpenCV.js, about 10 MB the first time), the four corners of the document are detected and the photo is flattened as if it had been taken head-on. The original photo is kept.
+
+If the detection misses, tap the photo → **範囲を直す** and drag the corners. A magnifier loupe follows your finger so the corner stays visible.
+
+</td>
+</tr>
+</table>
+
+### Capture text with the iPhone's text recognition
+
+<table>
+<tr>
+<td width="50%"><img src="docs/screenshots/05-text-scan.png" alt="Text scan sheet"></td>
+<td width="50%"><img src="docs/screenshots/04-photo-text.png" alt="Text attached to a photo"></td>
+</tr>
+<tr>
+<td>
+
+**Text scan** (the button next to the camera): tap the empty field → **自動入力 (AutoFill) → テキストをスキャン (Scan Text)**, point the camera at a business card, slide, or whiteboard, and tap **挿入 (Insert)**. Use **続けてスキャン** to grab several areas in a row.
+
+If you took a photo in the last 3 minutes, the text is attached to that photo. Otherwise it is inserted as a "スキャン" note.
+
+</td>
+<td>
+
+**Text on a photo**: open a photo → **写真の文字を取り込む**. You can scan the text with the camera, or long-press the text in the photo (Live Text) to copy it and then paste it in. You can also edit the text by hand.
+
+Photos with captured text show a 文字あり badge. The text is used for search and exported as `<ocr>`. Recognition happens on the iPhone, so no model is downloaded.
+
+</td>
+</tr>
+</table>
+
+### Search all meetings and jump to the moment
+
+<table>
+<tr>
+<td width="50%"><img src="docs/screenshots/06-history-search.png" alt="History search"></td>
+<td width="50%"><img src="docs/screenshots/07-jump-to-hit.png" alt="Jump to the matching line"></td>
+</tr>
+<tr>
+<td>
+
+The ☰ drawer lists every meeting stored on the phone. Search covers titles, context, topic headings, transcript lines, notes, photo captions, and photo text.
+
+Full-width and half-width characters, upper and lower case, and katakana and hiragana are all treated the same. Separate words with spaces to require all of them (AND search).
+
+</td>
+<td>
+
+**Tap a result** to open that meeting scrolled to the matching line. The search term is highlighted. Use **▲ ▼** in the find bar to step through every hit, and **×** to close it.
+
+Optional **reading search** (kuromoji.js, about 18 MB) also matches words by their pronunciation. This catches speech-recognition homophone mistakes (経費/軽費 and so on), and those hits are labeled 読み一致.
+
+</td>
+</tr>
+</table>
+
+### Hand off to Claude
+
+<table>
+<tr>
+<td width="50%"><img src="docs/screenshots/08-full-text.png" alt="Full text view"></td>
+<td>
+
+**送る (Send)** downloads everything since the last send as a zip containing a text file and an `images/` folder. Open it from the Files app and share it to Slack, Claude, or anywhere else. The clipboard is never used.
+
+The text is structured for an LLM: the data is wrapped in XML tags, and your instructions go at the end. Edit the meeting context (customer, product names) and the instructions in Settings.
+
+The **full text** view (📄 in the header) lets you select everything and summarize it with **Apple Intelligence Writing Tools**. `reader.html` also works with Safari Reader's summary.
+
+</td>
+</tr>
+</table>
+
+```xml
+<meeting_transcript session="20261018-1000" title="テスト商事 経費精算ワークフロー" date="2026-10-18" part="1" range="10:00-10:18">
+<context>テスト商事 経理部。テーマは経費精算のワークフロー化 …</context>
+<notes description="…">- [10:09] 次回は経理部長も同席</notes>
+<important description="…">- [10:10] 予算は初期費用で300万円くらいを想定しています</important>
+<images description="…">
+- [10:04] images/photo-01_1004.jpg 説明: ホワイトボードの現状フロー
+  <ocr warped="yes">経費精算 現状の業務フロー …</ocr>
+</images>
+<transcript description="…">[10:00] 本日はお時間いただきありがとうございます …</transcript>
+</meeting_transcript>
+<instructions>… what Claude should organize: needs, constraints, screens to prototype, open questions …</instructions>
+```
+
+### Context, instructions, and settings
+
+<table>
+<tr>
+<td width="50%"><img src="docs/screenshots/09-settings.png" alt="Settings"></td>
+<td>
+
+- **Meeting context**: the customer, the theme, and proper nouns. Claude uses it to fix misrecognized words. Writing a name as `表記（よみ）` also teaches the reading search how it is pronounced.
+- **Instructions for Claude** are appended to every export. Reset them to the default at any time.
+- Every feature that downloads a model is **off by default** and asks before downloading.
+- **Memory & processing status** (Settings → メモリと処理の状態, or tap the MB chip in the header):
+  - Which models are loaded and roughly how much memory they use, with a button to unload them.
+  - On iPhone, heavy models are loaded **one at a time**.
+  - If Safari reloads the tab because it ran out of memory, the next launch tells you what was running at the time.
+
+</td>
+</tr>
+</table>
+
+---
+
+## Getting started
+
+1. Open **https://tubone24.github.io/live_scribe/** in **Safari** on your iPhone.
+2. Allow the microphone (Settings → Apps → Safari → Microphone), and make sure Siri / Dictation is enabled.
+3. Tap **録音開始 (Start)** and talk. Star important lines, add notes, and take photos as you go.
+4. Tap **送る (Send)**, then open the zip from Files → Downloads and share it to Claude or Slack.
+
+### Add to Home Screen
+
+Use Share → **Add to Home Screen**. The manifest uses `display: browser`, so the icon still opens in Safari.
+
+If the sheet shows an **Open as Web App** switch, turn it **off**. Standalone web apps may not get speech recognition, and they keep their storage separate from Safari. The app shows a notice and an "Open in Safari" link if this happens.
+
+## Privacy
+
+- **Audio is never recorded or stored.** Speech recognition is provided by the browser (Apple's on iOS).
+- Text, photos, and captured text are stored **only in this browser's IndexedDB**. Nothing is uploaded, and the app has no server of its own.
+- The only network requests are one-time downloads of libraries and models, which are then cached in the browser:
+  - AI memo model from Hugging Face
+  - kuromoji dictionary and OpenCV.js from jsDelivr
+- Exports are created only when you tap Send or download.
+
+## Requirements
+
+| | |
+|---|---|
+| Transcription | iPhone Safari (Web Speech API, `ja-JP`) |
+| AI memo | Safari on iOS 26+ (WebGPU), about 255 MB model |
+| Text scan | iOS with Live Text (Settings → General → Language & Region → Live Text) |
+| Perspective correction | Any modern browser (OpenCV.js WASM, about 10 MB) |
+| Desktop Chrome | Works for review, search, and export. Speech recognition depends on the browser. |
+
+## How it's built
+
+A single static `index.html` with no build step, plus one Web Worker per heavy task, hosted on GitHub Pages.
+
+| File | Role |
+|---|---|
+| `index.html` | UI, storage (IndexedDB), export, search, job queue |
+| `llm-worker.js` | On-device LLM for the AI memo (transformers.js + WebGPU) |
+| `yomi-worker.js` | Reading search (kuromoji.js + IPADIC, cached in Cache Storage) |
+| `cv-worker.js` | Perspective detection and correction (OpenCV.js) |
+| `reader.html` | Page for Safari Reader's summary |
+
+Heavy work goes through one queue that runs a single job at a time, and it never runs alongside the LLM. On memory-constrained devices, idle workers are stopped after 60 seconds, and the LLM is unloaded before photo processing and reloaded when recording resumes.
