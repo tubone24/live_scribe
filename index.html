@@ -354,19 +354,6 @@ dialog::backdrop { background: oklch(0% 0 0 / .4); backdrop-filter: blur(2px); }
 .ocr-meta { font-size: 12px; color: var(--ink-3); margin: 12px 2px 6px; }
 #ocrText { min-height: 140px; font-size: 14px; }
 
-/* ロック画面（パスキーで暗号化しているとき） */
-#lockScreen { position: fixed; inset: 0; z-index: 100; display: grid; place-items: center; padding: 16px; background: var(--page); }
-#lockScreen[hidden] { display: none; }
-.lock-card { width: 100%; max-width: 360px; text-align: center; }
-.lock-card svg { color: var(--ink-2); }
-.lock-card h2 { font-size: 17px; margin: 12px 0 6px; }
-.lock-card p { font-size: 13px; color: var(--ink-2); line-height: 1.7; margin: 0 0 16px; }
-.lock-card .pill { width: 100%; justify-content: center; }
-.lock-card .link { color: var(--accent); font-size: 13px; margin-top: 14px; }
-.lock-card input[type="text"] { width: 100%; height: 42px; padding: 0 12px; border: 0; border-radius: 12px; background: var(--field); color: var(--ink); font: 14px ui-monospace, monospace; margin: 12px 0 8px; outline: 0; }
-.lock-card label { display: flex; gap: 8px; align-items: center; justify-content: center; font-size: 13px; color: var(--ink-2); margin-bottom: 10px; }
-.lock-err { color: var(--red); font-size: 13px; min-height: 1.6em; margin-top: 10px; }
-.rkey { font: 15px/1.8 ui-monospace, monospace; letter-spacing: .04em; word-break: break-all; padding: 12px; border-radius: 12px; background: var(--field); -webkit-user-select: all; user-select: all; }
 .ai-hint { font-size: 12px; color: var(--ink-2); background: var(--accent-tint); border-radius: 10px; padding: 8px 10px; line-height: 1.6; margin-bottom: 10px; }
 #fullArticle { flex: 1; overflow-y: auto; -webkit-user-select: text; user-select: text; font-size: 16px; line-height: 1.85; padding: 4px 2px 40px; }
 #fullArticle h1 { font-size: 20px; margin: 4px 0 2px; }
@@ -609,18 +596,6 @@ dialog::backdrop { background: oklch(0% 0 0 / .4); backdrop-filter: blur(2px); }
       <div class="row"><span class="grow">状態<small id="semInfo"></small></span></div>
     </div>
 
-    <div class="section-title">データの暗号化（パスキー）</div>
-    <div class="menu">
-      <div class="row">
-        <span class="grow">Face ID で商談データを暗号化<small id="vaultInfo"></small></span>
-        <button class="pill" id="vaultBtn" style="height:34px;font-size:13px"></button>
-      </div>
-      <button id="vaultLock">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>
-        今すぐロック
-      </button>
-    </div>
-
     <div class="section-title">データ</div>
     <div class="menu">
       <label class="row">
@@ -692,34 +667,6 @@ dialog::backdrop { background: oklch(0% 0 0 / .4); backdrop-filter: blur(2px); }
   </div>
 </dialog>
 
-<!-- パスキー暗号化：リカバリー鍵の表示（控えないと先に進めない） -->
-<dialog id="rkeyDlg">
-  <div class="sheet">
-    <div class="sheet-head"><h2 tabindex="-1" autofocus>リカバリー鍵を控えてください</h2></div>
-    <p class="hint" style="margin-top:0">パスキーを削除した・使えなくなったときに、商談データを取り出すための鍵です。この画面を閉じると二度と表示できません。パスワード管理アプリやメモなど、この端末以外の安全な場所に保存してください。</p>
-    <p class="rkey" id="rkeyText"></p>
-    <div class="img-actions"><button class="pill" id="rkeyCopy">コピー</button></div>
-    <label class="row" style="display:flex;gap:8px;align-items:center;margin:14px 2px;font-size:14px"><input type="checkbox" id="rkeyOk"> リカバリー鍵を安全な場所に控えた</label>
-    <div class="img-actions"><button class="pill" id="rkeyNext" disabled>暗号化を始める</button><button class="pill" id="rkeyCancel">やめる</button></div>
-  </div>
-</dialog>
-
-<div id="lockScreen" hidden>
-  <div class="lock-card">
-    <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>
-    <h2>ロックされています</h2>
-    <p>商談データはこの端末のパスキーで暗号化されています。Face ID（パスキー）で開いてください。</p>
-    <button class="pill" id="unlockBtn">Face ID で開く</button>
-    <div><button class="link" id="recoverToggle">リカバリー鍵で開く</button></div>
-    <div id="recoverBox" hidden>
-      <input type="text" id="recoverInput" placeholder="XXXX-XXXX-…" autocomplete="off" autocapitalize="characters" spellcheck="false">
-      <label><input type="checkbox" id="rewrapChk" checked> 新しいパスキーを登録し直す</label>
-      <button class="pill" id="recoverGo">リカバリー鍵で開く</button>
-    </div>
-    <p class="lock-err" id="lockErr"></p>
-  </div>
-</div>
-
 <script>
 (() => {
   const $ = (s) => document.querySelector(s);
@@ -740,11 +687,8 @@ dialog::backdrop { background: oklch(0% 0 0 / .4); backdrop-filter: blur(2px); }
           db.createObjectStore('sessions', { keyPath: 'id' });
           db.createObjectStore('images', { keyPath: 'id' }).createIndex('session', 'session');
         }
-        // v2: 意味検索のベクトル（商談オブジェクトに入れると 400ms ごとの保存が重くなるので分ける）と、暗号化の鍵
-        if (e.oldVersion < 2) {
-          db.createObjectStore('vectors', { keyPath: 'id' }).createIndex('sessionId', 'sessionId');
-          db.createObjectStore('keys', { keyPath: 'id' });
-        }
+        // v2: 意味検索のベクトル（商談オブジェクトに入れると 400ms ごとの保存が重くなるので分ける）
+        if (e.oldVersion < 2) db.createObjectStore('vectors', { keyPath: 'id' }).createIndex('sessionId', 'sessionId');
       };
       // 旧バージョンのタブが開いたままだと、バージョンアップが終わるまで待たされる
       r.onblocked = () => banner('別のタブで Live Scribe が開いています。そのタブを閉じてから再読み込みしてください。');
@@ -765,22 +709,12 @@ dialog::backdrop { background: oklch(0% 0 0 / .4); backdrop-filter: blur(2px); }
         t.onerror = () => reject(t.error);
       });
     };
-    // 保存されたままの形で読み書きする（暗号化の一括変換と鍵の保存に使う）
-    const raw = {
+    return {
       put: (store, v) => tx(store, 'readwrite', (s) => s.put(v)),
       get: (store, k) => tx(store, 'readonly', (s) => s.get(k)),
       all: (store) => tx(store, 'readonly', (s) => s.getAll()),
-      imagesOf: (sid) => tx('images', 'readonly', (s) => s.index('session').getAll(sid)),
-    };
-    // 通常の読み書きは Vault を通す（暗号化がオンなら書くときに暗号化し、読むときに復号する）
-    const openAll = (store, list) => Promise.all(list.map((r) => Vault.open(store, r)));
-    return {
-      raw,
-      put: async (store, v) => raw.put(store, await Vault.seal(store, v)),
-      get: async (store, k) => Vault.open(store, await raw.get(store, k)),
-      all: async (store) => openAll(store, await raw.all(store)),
       del: (store, k) => tx(store, 'readwrite', (s) => s.delete(k)),
-      imagesOf: async (sid) => openAll('images', await raw.imagesOf(sid)),
+      imagesOf: (sid) => tx('images', 'readonly', (s) => s.index('session').getAll(sid)),
       // インデックスの値が一致するレコードをまとめて消す（商談の削除時に vectors を消す）
       delWhere: (store, index, key) => tx(store, 'readwrite', (s) => {
         s.index(index).openKeyCursor(IDBKeyRange.only(key)).onsuccess = (e) => {
@@ -788,188 +722,6 @@ dialog::backdrop { background: oklch(0% 0 0 / .4); backdrop-filter: blur(2px); }
           if (c) { s.delete(c.primaryKey); c.continue(); }
         };
       }),
-    };
-  })();
-
-  // ---------- 暗号化（パスキーの PRF から鍵を取り出し、IndexedDB の中身を AES-GCM で暗号化） ----------
-  // データ鍵（DEK）をパスキー由来の鍵（KEK-P）とリカバリー鍵由来の鍵（KEK-R）でそれぞれ包んで keys に保存する。
-  // DEK そのものは保存せず、ロック解除中だけ取り出し不可の CryptoKey としてメモリに置く。サーバーには何も送らない
-  const Vault = (() => {
-    // 暗号化しないフィールド（一覧の並べ替えとインデックスに使う）
-    const SEALED = { sessions: ['id', 'createdAt', 'updatedAt'], images: ['id', 'session', 'ts'], vectors: ['id', 'sessionId'] };
-    const SALT = 'livescribe-v1';
-    const INFO_P = 'livescribe-kek-passkey-v1', INFO_R = 'livescribe-kek-recovery-v1';
-    const te = new TextEncoder(), td = new TextDecoder();
-    const rnd = (n) => crypto.getRandomValues(new Uint8Array(n));
-    let cfg = null, dek = null;
-
-    // レコードを1つのバイト列にする。Blob と Float32Array は JSON にせず、後ろにそのまま並べる
-    const pack = async (obj) => {
-      const plain = {}, meta = {}, bins = [];
-      for (const [k, v] of Object.entries(obj)) {
-        if (v instanceof Blob) { meta[k] = { t: 'blob', type: v.type, i: bins.length }; bins.push(new Uint8Array(await v.arrayBuffer())); }
-        else if (v instanceof Float32Array) { meta[k] = { t: 'f32', i: bins.length }; bins.push(new Uint8Array(v.buffer, v.byteOffset, v.byteLength).slice()); }
-        else plain[k] = v;
-      }
-      const head = te.encode(JSON.stringify({ plain, meta, sizes: bins.map((b) => b.length) }));
-      const out = new Uint8Array(4 + head.length + bins.reduce((n, b) => n + b.length, 0));
-      new DataView(out.buffer).setUint32(0, head.length);
-      out.set(head, 4);
-      let at = 4 + head.length;
-      for (const b of bins) { out.set(b, at); at += b.length; }
-      return out;
-    };
-    const unpack = (u8) => {
-      const n = new DataView(u8.buffer, u8.byteOffset).getUint32(0);
-      const { plain, meta, sizes } = JSON.parse(td.decode(u8.subarray(4, 4 + n)));
-      const offs = [];
-      let at = 4 + n;
-      for (const s of sizes) { offs.push(at); at += s; }
-      for (const [k, m] of Object.entries(meta)) {
-        const b = u8.slice(offs[m.i], offs[m.i] + sizes[m.i]);
-        plain[k] = m.t === 'blob' ? new Blob([b], { type: m.type }) : new Float32Array(b.buffer);
-      }
-      return plain;
-    };
-    // 別のレコードの暗号文に差し替えられても気付けるよう、ストア名と ID を認証付きデータに入れる
-    const aad = (store, id) => te.encode(`${store}:${id}`);
-    const seal = async (store, v) => {
-      if (!cfg || !SEALED[store] || !v) return v;
-      if (!dek) throw new Error('ロック中のため保存できません');
-      const iv = rnd(12);
-      const ct = await crypto.subtle.encrypt({ name: 'AES-GCM', iv, additionalData: aad(store, v.id) }, dek, await pack(v));
-      const out = { enc: { v: 1, iv, ct } };
-      for (const k of SEALED[store]) if (v[k] !== undefined) out[k] = v[k];
-      return out;
-    };
-    const open = async (store, r) => {
-      if (!r?.enc) return r; // 暗号化前のデータ（オンにした直後の変換途中など）はそのまま
-      if (!dek) throw new Error('ロック中のため読めません');
-      const pt = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: r.enc.iv, additionalData: aad(store, r.id) }, dek, r.enc.ct);
-      return unpack(new Uint8Array(pt));
-    };
-
-    const kekFrom = async (bytes, info) => {
-      const base = await crypto.subtle.importKey('raw', bytes, 'HKDF', false, ['deriveKey']);
-      return crypto.subtle.deriveKey({ name: 'HKDF', hash: 'SHA-256', salt: new Uint8Array(32), info: te.encode(info) },
-        base, { name: 'AES-KW', length: 256 }, false, ['wrapKey', 'unwrapKey']);
-    };
-    const unwrap = (wrapped, kek, extractable = false) =>
-      crypto.subtle.unwrapKey('raw', wrapped, kek, 'AES-KW', { name: 'AES-GCM', length: 256 }, extractable, ['encrypt', 'decrypt']);
-    const wrap = (key, kek) => crypto.subtle.wrapKey('raw', key, kek, 'AES-KW');
-
-    const supported = () => !!(window.PublicKeyCredential && navigator.credentials?.create);
-    // パスキーを作る（作成時の PRF の結果には頼らず、続けて get で値を取る）
-    const createPasskey = async () => {
-      if (!supported()) throw new Error('このブラウザはパスキーに対応していません');
-      const c = await navigator.credentials.create({ publicKey: {
-        rp: { name: 'Live Scribe', id: location.hostname },
-        user: { id: rnd(16), name: 'Live Scribe データ鍵', displayName: 'Live Scribe データ鍵' },
-        challenge: rnd(32),
-        pubKeyCredParams: [{ type: 'public-key', alg: -7 }, { type: 'public-key', alg: -257 }],
-        authenticatorSelection: { residentKey: 'required', userVerification: 'required' },
-        extensions: { prf: {} },
-      } });
-      if (c.getClientExtensionResults?.().prf?.enabled === false) throw new Error('このパスキーは PRF に対応していません（iCloud キーチェーンか Google パスワードマネージャーのパスキーが必要です）');
-      return c.rawId;
-    };
-    // 署名はサーバーで検証しない（ログインではなく、PRF で鍵の素を取り出すのが目的）
-    const prfOf = async (credId) => {
-      const a = await navigator.credentials.get({ publicKey: {
-        challenge: rnd(32), rpId: location.hostname, userVerification: 'required',
-        allowCredentials: [{ type: 'public-key', id: credId }],
-        extensions: { prf: { eval: { first: te.encode(SALT) } } },
-      } });
-      const r = a?.getClientExtensionResults?.().prf?.results?.first;
-      if (!r) throw new Error('パスキーから鍵を取り出せませんでした（PRF 非対応の環境です）');
-      return new Uint8Array(r);
-    };
-
-    // リカバリー鍵は 32 バイトの乱数を Base32（4文字ごとに区切り）で表示する
-    const B32 = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
-    const toB32 = (u8) => {
-      let bits = 0, val = 0, out = '';
-      for (const b of u8) {
-        val = (val << 8) | b; bits += 8;
-        while (bits >= 5) { out += B32[(val >>> (bits - 5)) & 31]; bits -= 5; }
-        val &= (1 << bits) - 1;
-      }
-      if (bits) out += B32[(val << (5 - bits)) & 31];
-      return out.match(/.{1,4}/g).join('-');
-    };
-    const fromB32 = (s) => {
-      const out = [];
-      let bits = 0, val = 0;
-      for (const ch of s.toUpperCase().replace(/[^A-Z2-7]/g, '')) {
-        val = (val << 5) | B32.indexOf(ch); bits += 5;
-        if (bits >= 8) { out.push((val >>> (bits - 8)) & 255); bits -= 8; val &= (1 << bits) - 1; }
-      }
-      return new Uint8Array(out);
-    };
-
-    // 全レコードを今の設定（cfg と dek）で書き直す。toPlain のときは復号した形で書く
-    const rewriteAll = async (onProgress, toPlain = false) => {
-      const stores = Object.keys(SEALED);
-      const lists = [];
-      for (const s of stores) lists.push(await raw().all(s));
-      const total = lists.reduce((n, l) => n + l.length, 0);
-      let done = 0;
-      for (let i = 0; i < stores.length; i++) {
-        for (const r of lists[i]) {
-          const v = await open(stores[i], r);
-          await raw().put(stores[i], toPlain ? v : await seal(stores[i], v));
-          onProgress?.(++done, total);
-        }
-      }
-    };
-    const raw = () => DB.raw;
-
-    // 初期設定：パスキー作成 → PRF → DEK を作って二重に包む。リカバリー鍵を見せて控えてもらってから commit する
-    const setup = async (credId) => {
-      const prf = await prfOf(credId);
-      const dekX = await crypto.subtle.generateKey({ name: 'AES-GCM', length: 256 }, true, ['encrypt', 'decrypt']);
-      const rkey = rnd(32);
-      const kp = await kekFrom(prf, INFO_P), kr = await kekFrom(rkey, INFO_R);
-      const next = { id: 'main', v: 1, credId, salt: SALT, wrappedP: await wrap(dekX, kp), wrappedR: await wrap(dekX, kr), createdAt: Date.now() };
-      return {
-        recovery: toB32(rkey),
-        commit: async (onProgress) => {
-          await raw().put('keys', next);
-          cfg = next; dek = await unwrap(next.wrappedP, kp);
-          await rewriteAll(onProgress);
-        },
-      };
-    };
-    const unlock = async () => {
-      const kp = await kekFrom(await prfOf(cfg.credId), INFO_P);
-      try { dek = await unwrap(cfg.wrappedP, kp); } catch { throw new Error('パスキーから取り出した鍵が合いません。リカバリー鍵で開いてください'); }
-    };
-    // リカバリー鍵で開く。makeCred を渡すと、鍵が正しいと確かめた後で新しいパスキーを作り、DEK を包み直す
-    // （データの再暗号化は不要）。開けたがパスキーの登録に失敗したときは、そのエラーを返す
-    const recover = async (text, makeCred = null) => {
-      const kr = await kekFrom(fromB32(text), INFO_R);
-      let dekX;
-      try { dekX = await unwrap(cfg.wrappedR, kr, true); } catch { throw new Error('リカバリー鍵が違います'); }
-      dek = await unwrap(cfg.wrappedR, kr);
-      if (!makeCred) return true;
-      try {
-        const credId = await makeCred();
-        const kp = await kekFrom(await prfOf(credId), INFO_P);
-        cfg = { ...cfg, credId, wrappedP: await wrap(dekX, kp) };
-        await raw().put('keys', cfg);
-        return true;
-      } catch (e) { return e; }
-    };
-    const disable = async (onProgress) => {
-      await rewriteAll(onProgress, true);
-      await DB.del('keys', 'main');
-      cfg = null; dek = null;
-    };
-    return {
-      load: async () => { cfg = (await raw().get('keys', 'main')) || null; },
-      on: () => !!cfg, locked: () => !!cfg && !dek, supported,
-      seal, open, createPasskey, setup, unlock, recover, disable,
-      forget: () => { dek = null; },
     };
   })();
 
@@ -2542,7 +2294,7 @@ dialog::backdrop { background: oklch(0% 0 0 / .4); backdrop-filter: blur(2px); }
         `<span class="m mono">${esc(fmtDate(s.updatedAt || s.createdAt))} · ${s.segs.length}件${photos ? ` · 写真${photos}` : ''}</span>` +
         `<button class="del" data-del="${s.id}" aria-label="この商談を削除">${TRASH_SVG}</button></li>`;
     }).join('') : '<li class="none">見つかりませんでした</li>';
-    const foot = `${sessions.length}件の商談がこの端末内に保存されています${Vault.on() ? '（暗号化済み）' : ''}`;
+    const foot = `${sessions.length}件の商談がこの端末内に保存されています`;
     $('#drFoot').textContent = foot;
     // 意味検索がオンで、まだ埋め込みを作っていない商談があれば知らせる（その商談は文字列一致だけで探す）
     if (P.semantic) Semantic.pendingCount(sessions).then((n) => { if (n) $('#drFoot').textContent = `${foot}。意味検索の準備中：残り${n}件`; }).catch(() => {});
@@ -2653,7 +2405,7 @@ dialog::backdrop { background: oklch(0% 0 0 / .4); backdrop-filter: blur(2px); }
     $('#ocrPastToggle').checked = P.ocrPast;
     $('#semanticToggle').checked = P.semantic;
     modelSelect.value = P.model; updModelInfo();
-    updVaultInfo(); Photos.updInfo(); Semantic.updInfo();
+    Photos.updInfo(); Semantic.updInfo();
     dlg.showModal();
   };
   $('#closeDlg').onclick = () => dlg.close();
@@ -2703,97 +2455,6 @@ dialog::backdrop { background: oklch(0% 0 0 / .4); backdrop-filter: blur(2px); }
     Photos.updInfo(); toast('モデルを削除しました');
   };
 
-  // ---------- データの暗号化（パスキー） ----------
-  const updVaultInfo = () => {
-    const on = Vault.on();
-    $('#vaultInfo').textContent = on
-      ? 'オン：起動時と、5分以上ほかのアプリにいた後に Face ID で開きます（録音中はロックしません）。パスキーは同じ Apple ID の端末に同期されるため、同期先の端末でもロックを解除できます。書き出した zip は暗号化されません。'
-      : Vault.supported()
-        ? 'オフ：オンにするとパスキーを作り、商談名・発言・メモ・写真・OCR・検索用のベクトルをこの端末内で暗号化します。iPhone の Safari（iCloud キーチェーン）で使ってください。Mac から iPhone の QR を読むような端末をまたぐ認証は使わないでください。'
-        : 'このブラウザはパスキーに対応していないため、オンにできません。';
-    $('#vaultBtn').textContent = on ? 'オフにする' : pendingCred ? '続ける（Face ID）' : 'オンにする';
-    $('#vaultBtn').disabled = !on && !Vault.supported();
-    $('#vaultLock').hidden = !on;
-  };
-  // リカバリー鍵を見せ、「控えた」にチェックするまで先に進めない
-  const showRecovery = (text) => new Promise((resolve) => {
-    const d = $('#rkeyDlg');
-    $('#rkeyText').textContent = text; $('#rkeyOk').checked = false; $('#rkeyNext').disabled = true;
-    $('#rkeyOk').onchange = (e) => { $('#rkeyNext').disabled = !e.target.checked; };
-    $('#rkeyCopy').onclick = async () => { try { await navigator.clipboard.writeText(text); toast('コピーしました'); } catch { toast('コピーできませんでした。長押しで選択してください'); } };
-    let ok = false;
-    $('#rkeyNext').onclick = () => { ok = true; d.close(); };
-    $('#rkeyCancel').onclick = () => d.close();
-    d.onclose = () => { $('#rkeyText').textContent = ''; resolve(ok); };
-    d.showModal();
-  });
-  let pendingCred = null; // 作成済みで、まだ鍵を取り出していないパスキー
-  const vaultOn = async () => {
-    try {
-      if (!pendingCred) pendingCred = await Vault.createPasskey();
-      let st;
-      try { st = await Vault.setup(pendingCred); }
-      catch (e) {
-        // 作成の直後に続けて Face ID を求めると、ブラウザによっては操作が必要として断られる。もう一度押してもらう
-        if (e.name === 'NotAllowedError') { updVaultInfo(); toast('もう一度ボタンを押して、パスキーで鍵を取り出してください'); return; }
-        throw e;
-      }
-      pendingCred = null;
-      if (!(await showRecovery(st.recovery))) { updVaultInfo(); toast('暗号化をやめました'); return; }
-      await flush();
-      await st.commit((d, t) => { $('#vaultInfo').textContent = `暗号化しています ${d} / ${t}`; });
-      updVaultInfo(); renderDrawer(); toast('商談データを暗号化しました');
-    } catch (e) {
-      pendingCred = null; updVaultInfo();
-      toast(e.name === 'NotAllowedError' ? 'パスキーの操作がキャンセルされました' : (e.message || String(e)));
-    }
-  };
-  const vaultOff = async () => {
-    if (!confirm('暗号化をオフにして、商談データを暗号化しない形で保存し直しますか？（確認のため Face ID を求めます）')) return;
-    try {
-      await Vault.unlock();
-      await flush();
-      await Vault.disable((d, t) => { $('#vaultInfo').textContent = `復号しています ${d} / ${t}`; });
-      updVaultInfo(); renderDrawer(); toast('暗号化をオフにしました');
-    } catch (e) { updVaultInfo(); toast(e.name === 'NotAllowedError' ? 'キャンセルされました' : (e.message || String(e))); }
-  };
-  $('#vaultBtn').onclick = () => (Vault.on() ? vaultOff() : vaultOn());
-  // ロックはメモリ上の復号済みデータごと捨てるため、保存してから読み込み直す
-  const lockNow = async () => {
-    if (running) return toast('録音中はロックしません');
-    await flush();
-    Vault.forget(); location.reload();
-  };
-  $('#vaultLock').onclick = lockNow;
-  const LOCK_MS = 5 * 60 * 1000;
-  let hiddenAt = 0;
-  document.addEventListener('visibilitychange', () => {
-    if (document.visibilityState === 'hidden') { hiddenAt = Date.now(); return; }
-    if (Vault.on() && !Vault.locked() && !running && hiddenAt && Date.now() - hiddenAt >= LOCK_MS) lockNow();
-  });
-  // ロック画面：Face ID（パスキー）か、リカバリー鍵で開く
-  const unlockScreen = () => new Promise((resolve) => {
-    const scr = $('#lockScreen');
-    scr.hidden = false;
-    const err = (m) => { $('#lockErr').textContent = m || ''; };
-    const done = () => { scr.hidden = true; err(''); resolve(); };
-    $('#unlockBtn').onclick = async () => {
-      err('');
-      try { await Vault.unlock(); done(); }
-      catch (e) { err(e.name === 'NotAllowedError' ? 'キャンセルされました。もう一度お試しください' : (e.message || String(e))); }
-    };
-    $('#recoverToggle').onclick = () => { $('#recoverBox').hidden = !$('#recoverBox').hidden; if (!$('#recoverBox').hidden) $('#recoverInput').focus(); };
-    $('#recoverGo').onclick = async () => {
-      err('');
-      try {
-        const r = await Vault.recover($('#recoverInput').value, $('#rewrapChk').checked ? Vault.createPasskey : null);
-        $('#recoverInput').value = '';
-        done();
-        if (r !== true) toast(`リカバリー鍵で開きました。新しいパスキーは登録できませんでした（${r?.message || r}）`);
-        else toast($('#rewrapChk').checked ? '新しいパスキーで開けるようにしました' : 'リカバリー鍵で開きました');
-      } catch (e) { err(e.message || String(e)); }
-    };
-  });
   modelSelect.onchange = () => { P.model = modelSelect.value; savePrefs(); updModelInfo(); AI.switchModel(); };
   $('#clearModel').onclick = async () => {
     if (!confirm('ダウンロード済みのモデルを削除しますか？（次回使うときに再ダウンロードします）')) return;
@@ -2822,9 +2483,6 @@ dialog::backdrop { background: oklch(0% 0 0 / .4); backdrop-filter: blur(2px); }
       $('#openSafari').href = 'x-safari-' + location.href.split('#')[0];
     }
     if (!SR) banner('このブラウザは音声認識に対応していません。iPhone の Safari で開いてください。');
-    // 暗号化がオンなら、ロックを解除するまで商談データを読まない
-    try { await Vault.load(); } catch {}
-    if (Vault.on()) await unlockScreen();
     // ダウンロードしたモデルや商談データを、ブラウザに勝手に消されにくくする
     navigator.storage?.persist?.().catch(() => {});
     let list = [];
