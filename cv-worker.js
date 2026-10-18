@@ -44,7 +44,7 @@ const readMat = async (cv, blob, maxSide = Infinity) => {
 };
 const toBlob = async (cv, mat, type, quality) => {
   const rgba = new cv.Mat();
-  if (mat.channels() === 1) cv.cvtColor(mat, rgba, cv.COLOR_GRAY2RGBA); else mat.copyTo(rgba);
+  mat.copyTo(rgba);
   const can = new OffscreenCanvas(rgba.cols, rgba.rows);
   can.getContext('2d').putImageData(new ImageData(new Uint8ClampedArray(rgba.data), rgba.cols, rgba.rows), 0, 0);
   rgba.delete();
@@ -111,8 +111,8 @@ const detect = async (blob) => {
   }
 };
 
-// 四角形を長方形に引き伸ばす。保存用（自然な色の JPEG）と OCR 用（CLAHE でコントラストをそろえたグレー）を返す
-const warp = async (blob, quad, forOcr) => {
+// 四角形を長方形に引き伸ばし、自然な色の JPEG を返す
+const warp = async (blob, quad) => {
   const { cv } = await getCv();
   const { mat } = await readMat(cv, blob);
   const q = orderQuad(quad);
@@ -126,17 +126,7 @@ const warp = async (blob, quad, forOcr) => {
   const out = new cv.Mat();
   try {
     cv.warpPerspective(mat, out, M, new cv.Size(w, h), cv.INTER_LINEAR, cv.BORDER_REPLICATE);
-    const blobOut = await toBlob(cv, out, 'image/jpeg', 0.88);
-    let ocrBlob = null;
-    if (forOcr) {
-      const gray = new cv.Mat();
-      cv.cvtColor(out, gray, cv.COLOR_RGBA2GRAY);
-      const clahe = new cv.CLAHE(2.0, new cv.Size(8, 8));
-      clahe.apply(gray, gray); clahe.delete();
-      ocrBlob = await toBlob(cv, gray, 'image/jpeg', 0.92);
-      gray.delete();
-    }
-    return { blob: blobOut, ocrBlob, w, h };
+    return { blob: await toBlob(cv, out, 'image/jpeg', 0.88), w, h };
   } finally {
     mat.delete(); src.delete(); dst.delete(); M.delete(); out.delete();
   }
@@ -146,11 +136,11 @@ self.onmessage = async ({ data }) => {
   const { id } = data;
   try {
     if (data.type === 'detect') postMessage({ type: 'detected', id, ...(await detect(data.blob)) });
-    else if (data.type === 'warp') postMessage({ type: 'warped', id, ...(await warp(data.blob, data.quad, data.forOcr)) });
+    else if (data.type === 'warp') postMessage({ type: 'warped', id, ...(await warp(data.blob, data.quad)) });
     else if (data.type === 'auto') {
       // 検出と補正をまとめて行う（撮影直後の自動処理）
       const det = await detect(data.blob);
-      const out = det.confidence > 0 ? await warp(data.blob, det.quad, data.forOcr) : null;
+      const out = det.confidence > 0 ? await warp(data.blob, det.quad) : null;
       postMessage({ type: 'auto', id, ...det, ...(out || {}) });
     }
   } catch (e) {

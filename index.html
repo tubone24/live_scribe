@@ -58,6 +58,8 @@ body {
   display: flex; flex-direction: column; height: 100dvh; overflow: hidden;
 }
 button { font: inherit; color: inherit; border: 0; background: none; cursor: pointer; padding: 0; }
+/* display を指定したクラスより hidden 属性を優先する */
+[hidden] { display: none !important; }
 svg { display: block; flex: none; }
 :focus:not(:focus-visible) { outline: none; }
 .mono { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-variant-numeric: tabular-nums; }
@@ -351,7 +353,7 @@ dialog::backdrop { background: oklch(0% 0 0 / .4); backdrop-filter: blur(2px); }
 .full-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 8px; }
 .full-actions .pill { height: 34px; font-size: 13px; padding: 0 12px; }
 
-/* 写真：状態バッジ・範囲の手動調整・OCR 結果 */
+/* 写真：状態バッジ・範囲の手動調整・写真の文字 */
 .ph { position: relative; display: block; width: min(240px, 100%); }
 .ph .thumb { width: 100%; }
 .badge { position: absolute; left: 8px; top: 8px; font-size: 11px; font-weight: 600; line-height: 1.6; padding: 1px 7px; border-radius: 6px; background: var(--surface); color: var(--ink-2); box-shadow: var(--shadow-btn); pointer-events: none; }
@@ -361,7 +363,6 @@ dialog::backdrop { background: oklch(0% 0 0 / .4); backdrop-filter: blur(2px); }
 .img-wrap { position: relative; width: fit-content; max-width: 100%; margin: 0 auto; }
 #imgDlg .img-wrap img { margin: 0; }
 .img-wrap .ov { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; overflow: visible; }
-.ov .box { fill: oklch(62.6% .205 255 / .1); stroke: var(--accent); stroke-width: 1.5; vector-effect: non-scaling-stroke; }
 .ov .quad { fill: oklch(62.6% .205 255 / .12); stroke: var(--accent); stroke-width: 2; vector-effect: non-scaling-stroke; }
 .ov .h { fill: var(--surface); stroke: var(--accent); stroke-width: 3; vector-effect: non-scaling-stroke; pointer-events: auto; cursor: grab; }
 #quadEd { touch-action: none; -webkit-user-select: none; user-select: none; }
@@ -370,6 +371,16 @@ dialog::backdrop { background: oklch(0% 0 0 / .4); backdrop-filter: blur(2px); }
 .img-actions .pill { height: 34px; font-size: 13px; padding: 0 12px; }
 .ocr-meta { font-size: 12px; color: var(--ink-3); margin: 12px 2px 6px; }
 #ocrText { min-height: 140px; font-size: 14px; }
+/* スキャンした文字は改行を残して表示する */
+.seg.note .txt { white-space: pre-line; }
+.scan-steps { margin: 0 0 12px; padding-left: 1.4em; font-size: 14px; line-height: 1.7; color: var(--ink-2); }
+.scan-steps li + li { margin-top: 4px; }
+.scan-steps b { color: var(--ink); font-weight: 600; }
+.scan-steps span { color: var(--ink-3); font-size: 12px; }
+#scanText { min-height: 160px; }
+.scan-opt { display: flex; gap: 8px; align-items: center; font-size: 14px; margin: 12px 2px 0; }
+.pill.primary { background: var(--accent); color: #fff; box-shadow: none; }
+.pill:disabled { opacity: .45; }
 
 .ai-hint { font-size: 12px; color: var(--ink-2); background: var(--accent-tint); border-radius: 10px; padding: 8px 10px; line-height: 1.6; margin-bottom: 10px; }
 #fullArticle { flex: 1; overflow-y: auto; -webkit-user-select: text; user-select: text; font-size: 16px; line-height: 1.85; padding: 4px 2px 40px; }
@@ -486,6 +497,9 @@ dialog::backdrop { background: oklch(0% 0 0 / .4); backdrop-filter: blur(2px); }
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8.5A2.5 2.5 0 0 1 6.5 6h1.6l1.4-2h5l1.4 2h1.6A2.5 2.5 0 0 1 20 8.5v8a2.5 2.5 0 0 1-2.5 2.5h-11A2.5 2.5 0 0 1 4 16.5z"/><circle cx="12" cy="12.5" r="3.3"/></svg>
       </button>
       <input type="file" id="camInput" accept="image/*" capture="environment" hidden>
+      <button class="pill sq" id="scanBtn" aria-label="カメラで文字をスキャンして挟み込む">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8V6a2 2 0 0 1 2-2h2M16 4h2a2 2 0 0 1 2 2v2M20 16v2a2 2 0 0 1-2 2h-2M8 20H6a2 2 0 0 1-2-2v-2M8 9h8M8 12h8M8 15h5"/></svg>
+      </button>
       <button class="pill" id="sendBtn">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5M12 18v-6M9 15l3-3 3 3"/></svg>
         送る<span class="count mono" id="sendCount">0</span>
@@ -586,22 +600,10 @@ dialog::backdrop { background: oklch(0% 0 0 / .4); backdrop-filter: blur(2px); }
         <span class="grow">補正後は元画像を消す<small>容量を節約します。消した写真は範囲を直せなくなります。</small></span>
         <span class="switch"><input type="checkbox" id="dropOrigToggle"><span></span></span>
       </label>
-      <div class="row">
-        <span class="grow">写真の文字認識（OCR）<small>写真の文字を端末内で読み取り、検索と書き出し（&lt;ocr&gt;）に使います。初回のみモデル（約70MB）を取得します。録音中は LLM を優先するため「録音停止後」がおすすめです。</small></span>
-        <select id="ocrSelect" class="sel">
-          <option value="off">オフ</option>
-          <option value="after">録音停止後</option>
-          <option value="now">撮影直後</option>
-        </select>
-      </div>
-      <label class="row">
-        <span class="grow">過去の写真も OCR する<small>録音していないときに、新しい商談から順に少しずつ処理します。</small></span>
-        <span class="switch"><input type="checkbox" id="ocrPastToggle"><span></span></span>
-      </label>
       <div class="row"><span class="grow">状態<small id="photoInfo"></small></span></div>
       <button id="clearPhotoModels">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/></svg>
-        ダウンロード済みの補正・OCR モデルを削除
+        ダウンロード済みの台形補正のライブラリを削除
       </button>
     </div>
 
@@ -633,7 +635,7 @@ dialog::backdrop { background: oklch(0% 0 0 / .4); backdrop-filter: blur(2px); }
         この商談の全文を共有シートで送る
       </button>
     </div>
-    <p class="hint">「送る」は前回以降の差分を zip（テキスト＋写真）でダウンロードします。「ファイル」アプリ &gt; ダウンロード から開き、共有で Slack に送ってください。商談の切り替え・削除は左上のボタンから行えます。<br>音声は保存しません。テキストと写真はこの端末のブラウザ内にのみ保存されます。文字起こしはブラウザ標準の音声認識（iOS では Apple）を利用します。AI メモと意味検索のモデルは初回のみ Hugging Face から、読み検索の辞書と台形補正・OCR のライブラリは初回のみ jsDelivr から、OCR のモデルは初回のみ PaddleOCR の配布元からダウンロードし、ブラウザ内にキャッシュします。写真・文字・ベクトルは端末の外に送りません。</p>
+    <p class="hint">「送る」は前回以降の差分を zip（テキスト＋写真）でダウンロードします。「ファイル」アプリ &gt; ダウンロード から開き、共有で Slack に送ってください。商談の切り替え・削除は左上のボタンから行えます。<br>音声は保存しません。テキストと写真はこの端末のブラウザ内にのみ保存されます。文字起こしはブラウザ標準の音声認識（iOS では Apple）を利用します。AI メモと意味検索のモデルは初回のみ Hugging Face から、読み検索の辞書と台形補正のライブラリは初回のみ jsDelivr からダウンロードし、ブラウザ内にキャッシュします。写真・文字・ベクトルは端末の外に送りません。写真の文字の取り込み（文字スキャン・Live Text）は iPhone のテキスト認識を使います。</p>
   </div>
 </dialog>
 
@@ -657,7 +659,7 @@ dialog::backdrop { background: oklch(0% 0 0 / .4); backdrop-filter: blur(2px); }
 <dialog id="imgDlg">
   <div class="sheet">
     <div class="sheet-head">
-      <h2 id="imgTitle">写真</h2>
+      <h2 id="imgTitle" tabindex="-1" autofocus>写真</h2>
       <div style="display:flex;gap:2px">
         <button class="icon-btn" id="imgDelete" aria-label="この写真を削除">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/></svg>
@@ -667,13 +669,13 @@ dialog::backdrop { background: oklch(0% 0 0 / .4); backdrop-filter: blur(2px); }
         </button>
       </div>
     </div>
-    <div class="img-wrap" id="imgWrap"><img id="imgView" alt=""><svg class="ov" id="ocrOv" preserveAspectRatio="none"></svg></div>
+    <div class="img-wrap" id="imgWrap"><img id="imgView" alt=""></div>
     <!-- 範囲の手動調整：元画像の上で四隅をドラッグする。指で隠れないよう拡大ルーペを出す -->
     <div class="img-wrap" id="quadEd" hidden><img id="quadImg" alt="元の写真"><svg class="ov" id="quadOv" preserveAspectRatio="none"></svg><canvas id="loupe" width="220" height="220"></canvas></div>
     <p class="cap" id="imgCap"></p>
     <div class="img-actions" id="imgActions">
       <button class="pill" id="quadBtn">範囲を直す</button>
-      <button class="pill" id="ocrBtn">OCR結果を見る</button>
+      <button class="pill" id="ocrBtn">写真の文字を取り込む</button>
     </div>
     <div class="img-actions" id="quadActions" hidden>
       <button class="pill" id="quadApply">補正する</button>
@@ -682,10 +684,35 @@ dialog::backdrop { background: oklch(0% 0 0 / .4); backdrop-filter: blur(2px); }
     </div>
     <div id="ocrBox" hidden>
       <p class="ocr-meta" id="ocrMeta"></p>
-      <textarea id="ocrText" placeholder="読み取った文字はありません"></textarea>
-      <div class="img-actions"><button class="pill" id="ocrRedo">OCR し直す</button></div>
+      <textarea id="ocrText" placeholder="写真の文字（直接入力もできます）"></textarea>
+      <div class="img-actions">
+        <button class="pill" id="ocrScan">カメラで文字スキャン</button>
+        <button class="pill" id="ocrPaste">コピーした文字を貼り付け</button>
+      </div>
+      <p class="hint">取り込み方：①「カメラで文字スキャン」で資料にカメラを向ける ② 上の写真の文字を長押し →「すべてを選択」→「コピー」してから「コピーした文字を貼り付け」。どちらも iPhone のテキスト認識で、端末の外には送りません。</p>
     </div>
-    <p class="hint" id="imgHint">写真の文字は長押しで選択できます（iPhone のテキスト認識）。</p>
+
+  </div>
+</dialog>
+
+<!-- 文字スキャン：入力欄の［テキストをスキャン］で、iPhone のテキスト認識の結果を直接受け取る -->
+<dialog id="scanDlg">
+  <div class="sheet">
+    <div class="sheet-head">
+      <h2>文字スキャン</h2>
+      <button class="icon-btn" id="scanClose" aria-label="閉じる">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>
+      </button>
+    </div>
+    <ol class="scan-steps">
+      <li>下の欄をタップして、出てきたメニューの<b>［テキストをスキャン］</b>を選ぶ<span>（キーボードの上にあるスキャンのアイコンでも可）</span></li>
+      <li>資料・スライド・名刺・ホワイトボードにカメラを向け、文字が囲まれたら<b>［挿入］</b></li>
+      <li>必要なら直して<b>［保存］</b></li>
+    </ol>
+    <textarea id="scanText" placeholder="ここをタップ →［テキストをスキャン］"></textarea>
+    <label class="scan-opt" id="scanToPhotoRow" hidden><input type="checkbox" id="scanToPhoto"> <span id="scanToPhotoLabel"></span></label>
+    <div class="img-actions"><button class="pill primary" id="scanSave" disabled>保存</button><button class="pill" id="scanCancel">やめる</button></div>
+    <p class="hint">文字の認識は iPhone の中で行われ、端末の外には送りません。</p>
   </div>
 </dialog>
 
@@ -778,7 +805,7 @@ dialog::backdrop { background: oklch(0% 0 0 / .4); backdrop-filter: blur(2px); }
     '5. 未確認事項と、次に顧客へ聞くべき質問',
   ].join('\n');
   const IMAGES_INSTR = '- images は商談中に撮った写真（ホワイトボード、帳票、既存システムの画面など）で、同じ zip に入っています。transcript 内の［写真］の位置で撮影しました。画面や帳票の再現、要件の裏付けに使ってください。';
-  const OCR_INSTR = '- images 内の ocr は写真から端末内で自動認識した文字で、誤りを含みます。固有名詞は context と照らして補正し、判断に迷うときは写真そのものを確認してください。';
+  const OCR_INSTR = '- images 内の ocr は、iPhone のテキスト認識で写真から取り込んだ文字です。誤りを含むことがあるので、固有名詞は context と照らし、迷うときは写真そのものを確認してください。';
   const newId = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
   const fresh = (keep = {}) => ({
     id: newId(), createdAt: Date.now(), updatedAt: Date.now(), title: '',
@@ -799,7 +826,8 @@ dialog::backdrop { background: oklch(0% 0 0 / .4); backdrop-filter: blur(2px); }
   try { P = JSON.parse(localStorage.getItem(PKEY)) || {}; } catch { P = {}; }
   P.hl ??= true; P.ai ??= false; P.model ??= 'lfm2-350m'; P.meter ??= true; P.zip ??= true; P.yomi ??= false;
   // 写真と検索の拡張（モデルのダウンロードが発生するので、すべて初期値はオフ）
-  P.warp ??= false; P.ocr ??= 'off'; P.ocrPast ??= false; P.semantic ??= false; P.dropOriginal ??= false;
+  P.warp ??= false; P.semantic ??= false; P.dropOriginal ??= false;
+  delete P.ocr; delete P.ocrPast; // 端末内 OCR（PaddleOCR）は廃止。写真の文字は iPhone のテキスト認識で取り込む
   if (P.v !== 2) { P.model = 'lfm2-350m'; P.v = 2; delete P.loaded; }
   const savePrefs = () => { try { localStorage.setItem(PKEY, JSON.stringify(P)); } catch {} };
 
@@ -901,7 +929,7 @@ dialog::backdrop { background: oklch(0% 0 0 / .4); backdrop-filter: blur(2px); }
   $('#toBottom').onclick = scrollBottom;
 
   const segBody = (seg) => {
-    if (seg.kind === 'note') return '<span class="tag">メモ</span>' + esc(seg.text);
+    if (seg.kind === 'note') return `<span class="tag">${seg.src === 'scan' ? 'スキャン' : 'メモ'}</span>` + esc(seg.text);
     if (seg.kind === 'image') {
       const b = Photos.badge(seg);
       return `<span class="ph"><img class="thumb" data-img="${seg.img}" alt="写真">${b ? `<span class="badge ${b[1]}">${esc(b[0])}</span>` : ''}</span>` + (seg.text ? `<span class="cap">${esc(seg.text)}</span>` : '');
@@ -1006,8 +1034,8 @@ dialog::backdrop { background: oklch(0% 0 0 / .4); backdrop-filter: blur(2px); }
       // メモ欄に入力中の文字があれば写真の説明として使う
       const caption = noteInput.value.trim();
       if (caption) { noteInput.value = ''; $('#noteAdd').disabled = true; }
-      // 補正と OCR は裏で行う（設定に応じて順番待ちに入れる）
-      appendSeg({ kind: 'image', ts, img: id, text: caption, star: false, ...(P.warp ? { warp: 'queued' } : {}), ...(P.ocr !== 'off' ? { ocr: { status: 'queued' } } : {}) });
+      // 補正は裏で行う（設定がオンなら順番待ちに入れる）
+      appendSeg({ kind: 'image', ts, img: id, text: caption, star: false, ...(P.warp ? { warp: 'queued' } : {}) });
       scrollBottom(); flush();
       toast('写真を挟み込みました');
       Photos.kick();
@@ -1022,41 +1050,82 @@ dialog::backdrop { background: oklch(0% 0 0 / .4); backdrop-filter: blur(2px); }
     $('#imgDlg').showModal();
     renderImgPanel();
   };
-  // 写真ダイアログの中身（画像・OCR の枠と本文・ボタン）を seg の今の状態に合わせる
+  // 写真ダイアログの中身（画像・写真の文字・ボタン）を seg の今の状態に合わせる
   async function renderImgPanel() {
     const seg = S.segs[viewing];
     if (!seg || !$('#imgDlg').open || quadState) return;
     const rec = await DB.get('images', seg.img).catch(() => null);
     const url = (await imgUrl(seg.img)) || '';
     if ($('#imgView').getAttribute('src') !== url) $('#imgView').src = url;
-    const ov = $('#ocrOv');
-    ov.setAttribute('viewBox', `0 0 ${rec?.w || 1} ${rec?.h || 1}`);
-    ov.innerHTML = showOcr && seg.ocr?.lines ? seg.ocr.lines.map((l) => `<polygon class="box" points="${l.poly.map((p) => p.join(',')).join(' ')}"/>`).join('') : '';
     // 補正済みで元画像を消した写真は、範囲を直せない
     $('#quadBtn').disabled = !rec || (seg.warped && !rec.original);
     $('#quadBtn').textContent = seg.warp === 'review' ? '範囲を確認して直す' : '範囲を直す';
-    $('#ocrBtn').textContent = showOcr ? 'OCR結果を隠す' : 'OCR結果を見る';
+    const has = !!seg.ocr?.text?.trim();
+    $('#ocrBtn').textContent = showOcr ? '写真の文字を閉じる' : has ? '写真の文字（あり）' : '写真の文字を取り込む';
     $('#ocrBox').hidden = !showOcr;
     if (!showOcr) return;
-    const o = seg.ocr;
-    $('#ocrMeta').textContent = !o ? (P.ocr === 'off' ? 'OCR はオフです（「OCR し直す」で、この写真だけ読み取れます）' : 'まだ読み取っていません')
-      : o.status === 'done' ? [o.edited ? '手で修正済み' : '自動で読み取り', o.lines && `${o.lines.length}行`, o.score != null && `平均スコア ${o.score}`, o.ms != null && `${o.ms}ms`, seg.warped && '補正あり'].filter(Boolean).join(' · ')
-      : o.status === 'failed' ? `読み取りに失敗しました（${o.error || '不明なエラー'}）`
-      : o.status === 'running' ? '読み取り中…' : '順番待ち（録音中は停止後に読み取ります）';
-    if (document.activeElement !== $('#ocrText')) $('#ocrText').value = o?.text || '';
+    $('#ocrMeta').textContent = has ? '検索と書き出しに使われます。直接書き直せます。' : 'まだありません。下の方法で取り込むと、検索と書き出しに使われます。';
+    if (document.activeElement !== $('#ocrText')) $('#ocrText').value = seg.ocr?.text || '';
   }
   $('#ocrBtn').onclick = () => { showOcr = !showOcr; renderImgPanel(); };
-  // 手で直した OCR 結果は、再処理で上書きしない
-  $('#ocrText').addEventListener('input', (e) => {
-    const seg = S.segs[viewing]; if (!seg) return;
-    seg.ocr = { ...(seg.ocr || {}), status: 'done', text: e.target.value, edited: true };
-    hayCache.delete(S.id); save(); renderOne(viewing);
-  });
-  $('#ocrRedo').onclick = () => {
-    const seg = S.segs[viewing]; if (!seg) return;
-    if (seg.ocr?.edited && !confirm('手で直した OCR 結果を、読み取り直した結果で上書きしますか？')) return;
-    seg.ocr = { status: 'queued' }; save(); renderOne(viewing);
-    Photos.rerun(S.id, seg.img); renderImgPanel();
+  // 写真の文字を書き換える（空にしたら消す）
+  const setPhotoText = (i, text) => {
+    const seg = S.segs[i]; if (!seg) return;
+    if (text.trim()) seg.ocr = { status: 'done', src: seg.ocr?.src || 'manual', text };
+    else delete seg.ocr;
+    hayCache.delete(S.id); save(); renderOne(i);
+  };
+  $('#ocrText').addEventListener('input', (e) => setPhotoText(viewing, e.target.value));
+  // Live Text：写真の文字を長押し → コピーした文字を貼り付ける（Safari は「ペースト」の確認を出す）
+  $('#ocrPaste').onclick = async () => {
+    let t = '';
+    try { t = await navigator.clipboard.readText(); } catch { return toast('貼り付けできませんでした。欄を長押しして「ペースト」してください'); }
+    if (!t.trim()) return toast('コピーされた文字がありません');
+    const cur = S.segs[viewing]?.ocr?.text?.trim();
+    setPhotoText(viewing, cur ? `${cur}\n${t.trim()}` : t.trim());
+    S.segs[viewing].ocr.src = 'livetext';
+    renderImgPanel(); toast('写真の文字に追加しました');
+  };
+  $('#ocrScan').onclick = () => openScan({ img: S.segs[viewing]?.img });
+
+  // ---------- 文字スキャン（iPhone のテキスト認識で、カメラから文字を直接取り込む） ----------
+  // Web から OCR は呼べないため、入力欄の［テキストをスキャン］を使ってもらう。端末内で処理され、モデルもメモリも要らない
+  const SCAN_ATTACH_MS = 3 * 60 * 1000; // 直前の写真の文字として扱う時間
+  let scanTarget = null;
+  const openScan = ({ img = null } = {}) => {
+    // 写真から開いたときはその写真、そうでなければ直近3分以内に撮った写真があれば候補にする
+    let i = img ? S.segs.findIndex((x) => x.img === img) : -1;
+    if (i < 0) {
+      const k = S.segs.findLastIndex((x) => x.kind === 'image');
+      if (k >= 0 && Date.now() - S.segs[k].ts < SCAN_ATTACH_MS) i = k;
+    }
+    scanTarget = i >= 0 ? S.segs[i].img : null;
+    $('#scanToPhotoRow').hidden = !scanTarget;
+    $('#scanToPhoto').checked = !!scanTarget;
+    if (scanTarget) $('#scanToPhotoLabel').textContent = `${img ? 'この写真' : `直前の写真（${fmt(S.segs[i].ts)}）`}の文字として保存`;
+    $('#scanText').value = ''; $('#scanSave').disabled = true;
+    $('#scanDlg').showModal();
+    $('#scanText').focus();
+  };
+  $('#scanBtn').onclick = () => openScan();
+  $('#scanText').addEventListener('input', (e) => { $('#scanSave').disabled = !e.target.value.trim(); });
+  $('#scanCancel').onclick = () => $('#scanDlg').close();
+  $('#scanClose').onclick = () => $('#scanDlg').close();
+  $('#scanSave').onclick = () => {
+    const text = $('#scanText').value.trim();
+    if (!text) return;
+    const i = scanTarget && $('#scanToPhoto').checked ? S.segs.findIndex((x) => x.img === scanTarget) : -1;
+    if (i >= 0) {
+      const cur = S.segs[i].ocr?.text?.trim();
+      setPhotoText(i, cur ? `${cur}\n${text}` : text);
+      S.segs[i].ocr.src = 'livetext';
+      if (viewing === i) renderImgPanel();
+      toast('写真の文字として保存しました');
+    } else {
+      appendSeg({ kind: 'note', src: 'scan', ts: Date.now(), text, star: false });
+      scrollBottom(); toast('スキャンした文字を挟み込みました');
+    }
+    $('#scanDlg').close();
   };
 
   // 範囲の手動調整：元画像の上で四隅をドラッグする（一番近い角をつかむ）。指の上に拡大ルーペを出す
@@ -1314,8 +1383,8 @@ dialog::backdrop { background: oklch(0% 0 0 / .4); backdrop-filter: blur(2px); }
     renderDrawer();
     // AI メモがオンなら、録音を止めたタイミングで商談名を自動で付ける（手で付けた名前は上書きしない）
     if (P.ai && (!S.title || S.titleAuto)) AI.requestTitle(S);
-    // 録音停止後にまとめて：写真の OCR、意味検索の索引
-    Photos.kick(); Photos.backfill(); Semantic.index(S); Semantic.backfill(30000);
+    // 録音停止後にまとめて：写真の補正、意味検索の索引
+    Photos.kick(); Semantic.index(S); Semantic.backfill(30000);
   }
   $('#recBtn').onclick = () => (running ? stop() : start());
 
@@ -1471,7 +1540,7 @@ dialog::backdrop { background: oklch(0% 0 0 / .4); backdrop-filter: blur(2px); }
     };
 
     const run = async (force = false) => {
-      // OCR・埋め込みのジョブ実行中は待つ（終わったら Jobs から maybeRun で呼び直される）
+      // 補正・埋め込みのジョブ実行中は待つ（終わったら Jobs から maybeRun で呼び直される）
       if (state !== 'ready' || job || Jobs.busy()) return;
       if (pendingTitle && await tryTitle()) return;
       // 処理中に商談が切り替わっても、結果は元の商談に書き込む
@@ -1569,7 +1638,7 @@ dialog::backdrop { background: oklch(0% 0 0 / .4); backdrop-filter: blur(2px); }
       Inflight.clear('llm');
       state = 'suspended'; setStatus('一時停止（メモリ節約）'); render();
     };
-    // 読み込み直す前に、手の空いている OCR などの Worker を止めておく
+    // 読み込み直す前に、手の空いている補正などの Worker を止めておく
     let wantResume = false;
     const resume = () => { if (state !== 'suspended') return; wantResume = false; Workers.stopIdle(); state = 'off'; apply(); };
     const maybeRun = () => {
@@ -1586,7 +1655,7 @@ dialog::backdrop { background: oklch(0% 0 0 / .4); backdrop-filter: blur(2px); }
     return { apply, switchModel, render, maybeRun, requestTitle, busy, suspend, resume, info };
   })();
 
-  // ---------- 重い処理の Worker 管理（台形補正・OCR・埋め込み） ----------
+  // ---------- 重い処理の Worker 管理（台形補正・埋め込み） ----------
   // 1機能1Worker。必要になったときに起動し、iPhone など低メモリの端末では使わなくなったら terminate してモデルごとメモリを返す。
   // Safari は deviceMemory を返さないので、不明なときは低メモリ扱いにする
   const LOW_MEM = !(navigator.deviceMemory >= 8);
@@ -1643,7 +1712,7 @@ dialog::backdrop { background: oklch(0% 0 0 / .4); backdrop-filter: blur(2px); }
     return { define, call, stop, stopIdle, list, alive: (name) => live.has(name) };
   })();
 
-  // ---------- ジョブキュー（OCR・埋め込みと AI メモの LLM を同時に走らせない） ----------
+  // ---------- ジョブキュー（補正・埋め込みと AI メモの LLM を同時に走らせない） ----------
   // iPhone のメモリと発熱を抑えるため、重い処理は1件ずつ実行する。prio が大きいもの（検索語の埋め込みなど）を先に回す
   const Jobs = (() => {
     const queue = [];
@@ -1686,15 +1755,12 @@ dialog::backdrop { background: oklch(0% 0 0 / .4); backdrop-filter: blur(2px); }
 
   const mbOf = (n) => `${Math.round(n / 1e6)}MB`;
 
-  // ---------- 写真の台形補正と OCR（撮った写真はすぐ保存・表示し、補正と文字認識は裏で1枚ずつ行う） ----------
-  const OCR_MODEL = 'v6-small', OCR_ENGINE = 'paddle-v6-small';
-  const PHOTO_CACHES = ['cv-lib-v1', 'ocr-models-v1'];
+  // ---------- 写真の台形補正（撮った写真はすぐ保存・表示し、補正は裏で1枚ずつ行う） ----------
+  // 写真の文字は、iPhone のテキスト認識（文字スキャン・Live Text）で取り込む。端末内の OCR モデルは持たない
+  const PHOTO_CACHES = ['cv-lib-v1'];
   Workers.define('cv', { url: 'cv-worker.js', label: '台形補正（OpenCV.js）', mb: 10 });
-  Workers.define('ocr', { url: 'ocr-worker.js', module: true, label: 'OCR（PaddleOCR）', mb: 70, onEvent: (d) => { if (d.type === 'progress') Photos.progress(d); } });
   const Photos = (() => {
-    const pending = new Set();   // 順番待ち・処理中のジョブ（同じ写真を二重に積まない）
-    const ocrInput = new Map();  // 補正直後の OCR 用画像（CLAHE 済み）。保存せず、なければ保存画像を使う
-    let dl = null;
+    const pending = new Set(); // 順番待ち・処理中の写真（同じ写真を二重に積まない）
 
     const segOf = async (sid, img) => (sid === S.id ? S : await DB.get('sessions', sid).catch(() => null))?.segs.find((x) => x.img === img);
     // 写真の seg を書き換える。開いている商談はメモリ上の S に、それ以外は DB の商談に書く（並び順は変えない）
@@ -1730,15 +1796,12 @@ dialog::backdrop { background: oklch(0% 0 0 / .4); backdrop-filter: blur(2px); }
       if (!rec) return;
       const src = rec.original || rec.blob;
       try {
-        const r = await Workers.call('cv', { type: 'auto', blob: src, forOcr: P.ocr !== 'off' });
+        const r = await Workers.call('cv', { type: 'auto', blob: src });
         const review = r.confidence < 0.65;
         if ((await segOf(sid, img))?.quadManual) return; // 処理中に手で直された
-        if (r.blob) {
-          await putImg({ ...rec, blob: r.blob, w: r.w, h: r.h, original: P.dropOriginal && !review ? undefined : src });
-          if (r.ocrBlob) ocrInput.set(img, r.ocrBlob);
-        }
+        if (r.blob) await putImg({ ...rec, blob: r.blob, w: r.w, h: r.h, original: P.dropOriginal && !review ? undefined : src });
         await edit(sid, img, (seg) => { seg.quad = r.quad; seg.warped = !!r.blob; seg.warp = review ? 'review' : 'done'; });
-      } catch (e) {
+      } catch {
         await edit(sid, img, (seg) => { seg.warp = 'failed'; });
       }
     };
@@ -1747,99 +1810,43 @@ dialog::backdrop { background: oklch(0% 0 0 / .4); backdrop-filter: blur(2px); }
       const rec = await DB.get('images', img);
       if (!rec) return;
       const src = rec.original || rec.blob;
-      const r = await Workers.call('cv', { type: 'warp', blob: src, quad, forOcr: P.ocr !== 'off' });
+      const r = await Workers.call('cv', { type: 'warp', blob: src, quad });
       await putImg({ ...rec, blob: r.blob, w: r.w, h: r.h, original: src });
-      if (r.ocrBlob) ocrInput.set(img, r.ocrBlob);
-      const seg = await edit(sid, img, (s) => { s.quad = quad; s.quadManual = true; s.warped = true; s.warp = 'done'; if (P.ocr !== 'off' && !s.ocr?.edited) s.ocr = { status: 'queued' }; });
-      if (seg?.ocr?.status === 'queued') queueOcr(sid, img, 3);
+      await edit(sid, img, (s) => { s.quad = quad; s.quadManual = true; s.warped = true; s.warp = 'done'; });
     }, { prio: 3 });
     // 補正をやめて元画像に戻す
     const unwarp = async (sid, img) => {
       const rec = await DB.get('images', img);
       if (!rec?.original) return;
       await putImg({ ...rec, blob: rec.original, original: undefined, ...(await sizeOf(rec.original)) });
-      ocrInput.delete(img);
-      const seg = await edit(sid, img, (s) => { s.quad = null; s.quadManual = true; s.warped = false; s.warp = 'skipped'; if (P.ocr !== 'off' && !s.ocr?.edited) s.ocr = { status: 'queued' }; });
-      if (seg?.ocr?.status === 'queued') queueOcr(sid, img, 3);
+      await edit(sid, img, (s) => { s.quad = null; s.quadManual = true; s.warped = false; s.warp = 'skipped'; });
     };
 
-    const runOcr = async (sid, img, force = false) => {
-      const seg0 = await segOf(sid, img);
-      if (!seg0 || (seg0.ocr?.edited && !force)) return;
-      const rec = await DB.get('images', img);
-      if (!rec) return;
-      await edit(sid, img, (seg) => { seg.ocr = { ...(seg.ocr || {}), status: 'running' }; });
-      try {
-        const r = await Workers.call('ocr', { type: 'ocr', blob: ocrInput.get(img) || rec.blob, model: OCR_MODEL });
-        ocrInput.delete(img); dl = null;
-        await edit(sid, img, (seg) => {
-          if (seg.ocr?.edited && !force) return;
-          seg.ocr = { status: 'done', engine: OCR_ENGINE, text: r.text, lines: r.lines, score: r.score, ms: r.ms, vertical: r.vertical };
-        });
-        Semantic.touch(sid);
-      } catch (e) {
-        dl = null;
-        await edit(sid, img, (seg) => { seg.ocr = { status: 'failed', error: String(e.message || e).slice(0, 200) }; });
-      }
-    };
-
-    const enqueue = (key, fn, prio = 0) => {
+    const enqueue = (key, fn) => {
       if (pending.has(key)) return;
       pending.add(key); updInfo();
-      Jobs.add(key, fn, { prio }).catch(() => {}).finally(() => { pending.delete(key); updInfo(); });
+      Jobs.add(key, fn).catch(() => {}).finally(() => { pending.delete(key); updInfo(); });
     };
-    const queueOcr = (sid, img, prio = 0) => enqueue(`ocr:${img}`, () => runOcr(sid, img), prio);
-    // 中断されたまま（running）の写真も、もう一度処理する
-    const needsOcr = (seg) => seg.kind === 'image' && !seg.ocr?.edited && (!seg.ocr || seg.ocr.status === 'queued' || seg.ocr.status === 'running');
-    const ocrDue = () => P.ocr === 'now' || (P.ocr === 'after' && !running);
-
-    // 開いている商談の写真を処理する。補正を先にまとめて積み、OCR は後でまとめる（モデルの入れ替えを減らす）
+    // 開いている商談の、補正待ちの写真を処理する
     const kick = () => {
-      const imgs = S.segs.filter((x) => x.kind === 'image');
-      if (P.warp) for (const x of imgs) if (x.warp === 'queued' && !x.quadManual) enqueue(`warp:${x.img}`, () => autoWarp(S.id, x.img));
-      if (ocrDue()) for (const x of imgs) if (needsOcr(x)) queueOcr(S.id, x.img);
-    };
-    // ほかの商談の写真（設定で「過去の写真も OCR する」）：録音していないときに、新しい商談から少しずつ
-    let bfTimer = 0;
-    const backfill = (ms = 5000) => {
-      clearTimeout(bfTimer);
-      if (P.ocr === 'off' || !P.ocrPast) return;
-      bfTimer = setTimeout(async () => {
-        if (running || Jobs.size()) return backfill(30000);
-        const list = (await DB.all('sessions').catch(() => [])).sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
-        for (const s of list) {
-          if (s.id === S.id) continue;
-          const todo = s.segs.filter(needsOcr);
-          if (!todo.length) continue;
-          todo.forEach((x) => queueOcr(s.id, x.img));
-          return backfill(10000);
-        }
-      }, ms);
+      if (!P.warp) return;
+      for (const x of S.segs) if (x.kind === 'image' && x.warp === 'queued' && !x.quadManual) enqueue(`warp:${x.img}`, () => autoWarp(S.id, x.img));
     };
 
     // サムネイルの状態バッジ
     const badge = (seg) => {
       if (seg.warp === 'queued' && P.warp) return ['補正待ち', ''];
       if (seg.warp === 'review') return ['範囲を確認', 'warn'];
-      const o = seg.ocr?.status;
-      if (o === 'running') return [dl ? `モデル取得中 ${Math.round((dl.loaded / dl.total) * 100)}%` : 'OCR中', ''];
-      if (P.ocr !== 'off' && (o === 'queued' || !seg.ocr)) return ['OCR待ち', ''];
-      if (o === 'failed') return ['OCR失敗', 'ng'];
-      if (o === 'done' && seg.ocr.text) return ['文字あり', 'ok'];
+      if (seg.ocr?.text?.trim()) return ['文字あり', 'ok'];
       return null;
-    };
-    const progress = (d) => {
-      dl = d.total ? d : null;
-      S.segs.forEach((x, i) => { if (x.ocr?.status === 'running') renderOne(i); });
-      updInfo();
     };
     const updInfo = () => {
       const el = $('#photoInfo');
       if (!el) return;
       const n = pending.size;
-      el.textContent = dl ? `OCR モデルを取得中 ${mbOf(dl.loaded)} / ${mbOf(dl.total)}` : n ? `処理待ち ${n}件（録音中は AI メモを優先します）` : (P.warp || P.ocr !== 'off') ? '待機中' : 'オフ';
+      el.textContent = n ? `補正待ち ${n}件${LOW_MEM && running && P.ai ? '（AI メモで録音中は停止後に補正します）' : ''}` : P.warp ? '待機中' : 'オフ';
     };
-    return { kick, backfill, badge, progress, updInfo, manualWarp, unwarp, rerun: (sid, img) => enqueue(`ocr:${img}`, () => runOcr(sid, img, true), 3), edit };
+    return { kick, badge, updInfo, manualWarp, unwarp, edit };
   })();
 
   // ---------- 意味検索（埋め込みベクトルと文字列一致を RRF で合成） ----------
@@ -1853,7 +1860,7 @@ dialog::backdrop { background: oklch(0% 0 0 / .4); backdrop-filter: blur(2px); }
     const load = () => (loading ??= DB.all('vectors').then((l) => { vecs = new Map(l.map((v) => [v.id, v])); }, () => { vecs = new Map(); }));
     const hash = (s) => { let h = 0x811c9dc5; for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 0x01000193); } return (h >>> 0).toString(36); };
 
-    // チャンク：発言は AI メモの区間（なければ約600字）ごと、メモ・写真の説明・見出し・OCR・商談名とコンテキスト
+    // チャンク：発言は AI メモの区間（なければ約600字）ごと、メモ・写真の説明・見出し・写真の文字・商談名とコンテキスト
     const chunksOf = (sess, live) => {
       const out = [];
       const add = (kind, ref, text, max) => {
@@ -1881,7 +1888,7 @@ dialog::backdrop { background: oklch(0% 0 0 / .4); backdrop-filter: blur(2px); }
         if (s.kind === 'note') add('memo', i, s.text, 600);
         if (s.kind !== 'image') return;
         if (s.text) add('memo', `img-${s.img}`, `写真：${s.text}`, 600);
-        // OCR は写真1枚1チャンク。400字を超えたら行の切れ目で分ける
+        // 写真の文字は写真1枚1チャンク。400字を超えたら行の切れ目で分ける
         let buf = '', k = 0;
         for (const line of String(s.ocr?.text || '').split('\n')) {
           if (buf && buf.length + line.length + 1 > 400) { add('ocr', `${s.img}-${k++}`, buf, 400); buf = ''; }
@@ -2007,23 +2014,24 @@ dialog::backdrop { background: oklch(0% 0 0 / .4); backdrop-filter: blur(2px); }
       `part="${part}"`,
       `range="${fmt(segs[0].ts)}-${fmt(segs[segs.length - 1].ts)}"`,
     ].join(' ');
-    const list = (items) => items.map((s) => `- [${fmt(s.ts)}] ${xmlEsc(s.text)}`).join('\n');
+    // スキャンした文字は複数行になるので、2行目以降を字下げする
+    const list = (items) => items.map((s) => `- [${fmt(s.ts)}] ${s.src === 'scan' ? '（スキャン）' : ''}${xmlEsc(s.text).replace(/\n/g, '\n  ')}`).join('\n');
     let instr = (S.instr ?? DEFAULT_INSTR).trim();
     const hasOcr = images.some((s) => s.ocr?.text?.trim());
     if (images.length && instr) instr = instr.replace('\n\n以下を', `\n${IMAGES_INSTR}${hasOcr ? `\n${OCR_INSTR}` : ''}\n\n以下を`);
-    // 写真ごとに、OCR の全文を <ocr> で添える（補正の有無と平均スコアを属性に）
+    // 写真ごとに、取り込んだ文字を <ocr> で添える（補正の有無を属性に）
     const imageLine = (s) => {
       let line = `- [${fmt(s.ts)}] ${names.get(s.img)}${s.text ? ' 説明: ' + xmlEsc(s.text) : ''}`;
       const t = s.ocr?.text?.trim();
-      if (t) line += `\n  <ocr warped="${s.warped ? 'yes' : 'no'}"${s.ocr.score != null ? ` score="${s.ocr.score}"` : ''}${s.ocr.edited ? ' edited="yes"' : ''}>\n${xmlEsc(t)}\n  </ocr>`;
+      if (t) line += `\n  <ocr warped="${s.warped ? 'yes' : 'no'}">\n${xmlEsc(t)}\n  </ocr>`;
       return line;
     };
     const text = [
       `<meeting_transcript ${attrs}>`,
       S.context.trim() && `<context>\n${xmlEsc(S.context.trim())}\n</context>`,
-      notes.length && `<notes description="私が手入力したメモ。確度が高い">\n${list(notes)}\n</notes>`,
+      notes.length && `<notes description="私が手入力したメモ。確度が高い${notes.some((x) => x.src === 'scan') ? '。（スキャン）は iPhone のテキスト認識でカメラから取り込んだ文字で、誤りを含むことがある' : ''}">\n${list(notes)}\n</notes>`,
       important.length && `<important description="私が重要マークを付けた発言（音声認識）">\n${list(important)}\n</important>`,
-      images.length && `<images description="商談中に撮った写真。ファイルは同じ zip 内。ocr は写真から自動認識した文字（誤りあり）">\n${images.map(imageLine).join('\n')}\n</images>`,
+      images.length && `<images description="商談中に撮った写真。ファイルは同じ zip 内。ocr は写真から取り込んだ文字（誤りあり）">\n${images.map(imageLine).join('\n')}\n</images>`,
       lines.length && `<transcript description="音声認識の生テキスト。誤認識あり・話者の区別なし。★は重要マーク、［写真］は撮影位置">\n${lines.join('\n')}\n</transcript>`,
       '</meeting_transcript>',
       instr && `<instructions>\n${instr}\n</instructions>`,
@@ -2104,7 +2112,7 @@ dialog::backdrop { background: oklch(0% 0 0 / .4); backdrop-filter: blur(2px); }
     sess.segs.forEach((s, i) => {
       const t = topicAt.get(i);
       if (t) { flushPara(); html += `<h2>${esc(t.title)}<small>${fmt(t.ts0)}〜</small></h2>`; }
-      if (s.kind === 'note') { flushPara(); html += `<blockquote>メモ：${esc(s.text)}</blockquote>`; return; }
+      if (s.kind === 'note') { flushPara(); html += `<blockquote>${s.src === 'scan' ? 'スキャン' : 'メモ'}：${esc(s.text)}</blockquote>`; return; }
       if (s.kind === 'image') { flushPara(); html += `<figure><img data-img="${s.img}" alt="${esc(s.text || '写真')}"><figcaption>${fmt(s.ts)} ${esc(names.get(s.img) || '')} ${esc(s.text || '')}</figcaption></figure>`; return; }
       // 1分以上あいたら段落を分ける
       if (para.length && s.ts - paraTs > 60000) flushPara();
@@ -2517,8 +2525,6 @@ dialog::backdrop { background: oklch(0% 0 0 / .4); backdrop-filter: blur(2px); }
     $('#yomiToggle').checked = P.yomi; updYomiInfo();
     $('#warpToggle').checked = P.warp;
     $('#dropOrigToggle').checked = P.dropOriginal;
-    $('#ocrSelect').value = P.ocr;
-    $('#ocrPastToggle').checked = P.ocrPast;
     $('#semanticToggle').checked = P.semantic;
     modelSelect.value = P.model; updModelInfo();
     Photos.updInfo(); Semantic.updInfo();
@@ -2550,14 +2556,6 @@ dialog::backdrop { background: oklch(0% 0 0 / .4); backdrop-filter: blur(2px); }
     renderAll(); Photos.updInfo();
   };
   $('#dropOrigToggle').onchange = (e) => { P.dropOriginal = e.target.checked; savePrefs(); };
-  $('#ocrSelect').onchange = (e) => {
-    if (P.ocr === 'off' && e.target.value !== 'off' && !confirm('写真の OCR をオンにしますか？\n初回の OCR 時に、文字認識のモデルと実行環境（約70MB）をダウンロードし、ブラウザに保存します。写真は端末の外に出ません。')) { e.target.value = 'off'; return; }
-    P.ocr = e.target.value; savePrefs();
-    if (P.ocr === 'off') { Jobs.cancel((j) => j.label.startsWith('ocr:')); Workers.stop('ocr'); }
-    else { Photos.kick(); Photos.backfill(); }
-    renderAll(); Photos.updInfo();
-  };
-  $('#ocrPastToggle').onchange = (e) => { P.ocrPast = e.target.checked; savePrefs(); Photos.backfill(1000); };
   $('#semanticToggle').onchange = (e) => {
     if (e.target.checked && !confirm('意味検索をオンにしますか？\n埋め込みモデル（約40MB）をダウンロードし、ブラウザに保存します。その後、録音していないときに過去の商談の索引を少しずつ作ります。')) { e.target.checked = false; return; }
     P.semantic = e.target.checked; savePrefs();
@@ -2565,8 +2563,8 @@ dialog::backdrop { background: oklch(0% 0 0 / .4); backdrop-filter: blur(2px); }
     Semantic.updInfo(); renderDrawer(false);
   };
   $('#clearPhotoModels').onclick = async () => {
-    if (!confirm('ダウンロード済みの補正・OCR モデルを削除しますか？（次回使うときに再ダウンロードします。読み取り済みの文字は残ります）')) return;
-    Workers.stop('cv'); Workers.stop('ocr');
+    if (!confirm('ダウンロード済みの台形補正のライブラリを削除しますか？（次回使うときに再ダウンロードします）')) return;
+    Workers.stop('cv');
     for (const c of PHOTO_CACHES) { try { await caches.delete(c); } catch {} }
     Photos.updInfo(); toast('モデルを削除しました');
   };
@@ -2594,7 +2592,7 @@ dialog::backdrop { background: oklch(0% 0 0 / .4); backdrop-filter: blur(2px); }
   // ---------- 診断（メモリと処理の状態） ----------
   // iPhone の Safari はページからメモリ使用量を読めないため、載せているモデルのダウンロードサイズを目安として合計する
   const MEM_WARN = 250; // MB。省メモリの端末でこれを超えたら注意（LLM と別のモデルを同時に載せたくらい）
-  const JOB_LABEL = { ocr: '写真の文字認識', warp: '台形補正', embed: '意味検索の索引', query: '検索語の解析' };
+  const JOB_LABEL = { warp: '台形補正', embed: '意味検索の索引', query: '検索語の解析' };
   const jobName = (label) => JOB_LABEL[String(label).split(':')[0]] || label;
   const Diag = (() => {
     let storage = null, storageAt = 0;
@@ -2631,7 +2629,7 @@ dialog::backdrop { background: oklch(0% 0 0 / .4); backdrop-filter: blur(2px); }
         `<div class="diag-sum"><b>約${t}MB</b><span>いま読み込んでいるモデルの合計（目安）</span></div>` +
         `<div class="diag-bar${LOW_MEM && t >= MEM_WARN ? ' warn' : ''}"><i style="width:${Math.min(100, (t / cap) * 100)}%"></i></div>` +
         `<p class="hint" style="margin-top:8px">${LOW_MEM
-          ? 'この端末は省メモリ扱いです。重いモデルは同時に1つだけ載せ、写真の処理などの前に AI メモのモデルを外します。AI メモを使って録音している間は、写真の補正と OCR を録音停止まで待たせます。'
+          ? 'この端末は省メモリ扱いです。重いモデルは同時に1つだけ載せ、写真の処理などの前に AI メモのモデルを外します。AI メモを使って録音している間は、写真の補正を録音停止まで待たせます。'
           : 'この端末はメモリに余裕があるため、モデルを外さずに使います。'}</p>` +
         '<div class="section-title">モデル</div><div class="menu">' +
         list.map((p, i) => `<div class="row"><span class="grow">${esc(p.label)}<small>約${p.mb}MB${p.note ? ` · ${esc(p.note)}` : ''}</small></span>` +
@@ -2696,7 +2694,9 @@ dialog::backdrop { background: oklch(0% 0 0 / .4); backdrop-filter: blur(2px); }
     P.current = S.id; savePrefs();
     if (S.segs.length) $('#recLabel').textContent = '録音再開';
     tick(); renderAll(); updWL(); AI.apply(); Yomi.apply(); renderDrawer();
-    Photos.kick(); Photos.backfill(); Semantic.backfill();
+    Photos.kick(); Semantic.backfill();
+    // 廃止した端末内 OCR のモデル（約70MB）が残っていれば消す
+    caches.delete('ocr-models-v1').catch(() => {});
     // 前回、重い処理の途中でページが終了していたら知らせる（タップで診断を開く）
     const crash = Inflight.fresh();
     if (crash) {
