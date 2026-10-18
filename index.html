@@ -321,7 +321,7 @@ dialog::backdrop { background: oklch(0% 0 0 / .4); backdrop-filter: blur(2px); }
 .switch span::after { content: ""; position: absolute; left: 3px; top: 3px; width: 20px; height: 20px; border-radius: 50%; background: #fff; box-shadow: 0 1px 2px oklch(0% 0 0 / .3); transition: transform .2s; }
 .switch input:checked + span { background: var(--green); }
 .switch input:checked + span::after { transform: translateX(18px); }
-#modelSelect {
+#modelSelect, .sel {
   font: inherit; font-size: 14px; color: var(--ink); background: var(--field); border: 0; border-radius: 10px;
   padding: 8px 10px; max-width: 100%;
 }
@@ -333,6 +333,40 @@ dialog::backdrop { background: oklch(0% 0 0 / .4); backdrop-filter: blur(2px); }
 #fullDlg .sheet { max-height: none; height: 100%; display: flex; flex-direction: column; padding-top: calc(env(safe-area-inset-top) + 12px); }
 .full-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 8px; }
 .full-actions .pill { height: 34px; font-size: 13px; padding: 0 12px; }
+
+/* 写真：状態バッジ・範囲の手動調整・OCR 結果 */
+.ph { position: relative; display: block; width: min(240px, 100%); }
+.ph .thumb { width: 100%; }
+.badge { position: absolute; left: 8px; top: 8px; font-size: 11px; font-weight: 600; line-height: 1.6; padding: 1px 7px; border-radius: 6px; background: var(--surface); color: var(--ink-2); box-shadow: var(--shadow-btn); pointer-events: none; }
+.badge.ok { color: var(--green); }
+.badge.warn { color: var(--orange); }
+.badge.ng { color: var(--red); }
+.img-wrap { position: relative; width: fit-content; max-width: 100%; margin: 0 auto; }
+#imgDlg .img-wrap img { margin: 0; }
+.img-wrap .ov { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; overflow: visible; }
+.ov .box { fill: oklch(62.6% .205 255 / .1); stroke: var(--accent); stroke-width: 1.5; vector-effect: non-scaling-stroke; }
+.ov .quad { fill: oklch(62.6% .205 255 / .12); stroke: var(--accent); stroke-width: 2; vector-effect: non-scaling-stroke; }
+.ov .h { fill: var(--surface); stroke: var(--accent); stroke-width: 3; vector-effect: non-scaling-stroke; pointer-events: auto; cursor: grab; }
+#quadEd { touch-action: none; -webkit-user-select: none; user-select: none; }
+#loupe { position: absolute; width: 110px; height: 110px; border-radius: 50%; box-shadow: var(--shadow-overlay); pointer-events: none; display: none; background: var(--surface); }
+.img-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+.img-actions .pill { height: 34px; font-size: 13px; padding: 0 12px; }
+.ocr-meta { font-size: 12px; color: var(--ink-3); margin: 12px 2px 6px; }
+#ocrText { min-height: 140px; font-size: 14px; }
+
+/* ロック画面（パスキーで暗号化しているとき） */
+#lockScreen { position: fixed; inset: 0; z-index: 100; display: grid; place-items: center; padding: 16px; background: var(--page); }
+#lockScreen[hidden] { display: none; }
+.lock-card { width: 100%; max-width: 360px; text-align: center; }
+.lock-card svg { color: var(--ink-2); }
+.lock-card h2 { font-size: 17px; margin: 12px 0 6px; }
+.lock-card p { font-size: 13px; color: var(--ink-2); line-height: 1.7; margin: 0 0 16px; }
+.lock-card .pill { width: 100%; justify-content: center; }
+.lock-card .link { color: var(--accent); font-size: 13px; margin-top: 14px; }
+.lock-card input[type="text"] { width: 100%; height: 42px; padding: 0 12px; border: 0; border-radius: 12px; background: var(--field); color: var(--ink); font: 14px ui-monospace, monospace; margin: 12px 0 8px; outline: 0; }
+.lock-card label { display: flex; gap: 8px; align-items: center; justify-content: center; font-size: 13px; color: var(--ink-2); margin-bottom: 10px; }
+.lock-err { color: var(--red); font-size: 13px; min-height: 1.6em; margin-top: 10px; }
+.rkey { font: 15px/1.8 ui-monospace, monospace; letter-spacing: .04em; word-break: break-all; padding: 12px; border-radius: 12px; background: var(--field); -webkit-user-select: all; user-select: all; }
 .ai-hint { font-size: 12px; color: var(--ink-2); background: var(--accent-tint); border-radius: 10px; padding: 8px 10px; line-height: 1.6; margin-bottom: 10px; }
 #fullArticle { flex: 1; overflow-y: auto; -webkit-user-select: text; user-select: text; font-size: 16px; line-height: 1.85; padding: 4px 2px 40px; }
 #fullArticle h1 { font-size: 20px; margin: 4px 0 2px; }
@@ -537,35 +571,54 @@ dialog::backdrop { background: oklch(0% 0 0 / .4); backdrop-filter: blur(2px); }
       </button>
     </div>
 
-    <!-- 写真と検索の拡張：各機能（台形補正・OCR・意味検索）の実装が入るまで隠しておく -->
-    <div id="extSettings" hidden>
-      <div class="section-title">写真と検索（実験）</div>
-      <div class="menu">
-        <label class="row">
-          <span class="grow">写真の台形補正<small>撮った写真の四隅を見つけて、正面から撮ったように補正します。元の写真も残します。</small></span>
-          <span class="switch"><input type="checkbox" id="warpToggle"><span></span></span>
-        </label>
-        <label class="row">
-          <span class="grow">補正後は元画像を消す<small>容量を節約します。消した後は範囲を直せなくなります。</small></span>
-          <span class="switch"><input type="checkbox" id="dropOrigToggle"><span></span></span>
-        </label>
-        <div class="row">
-          <span class="grow">写真の文字認識（OCR）<small>写真の文字を読み取り、検索と書き出しに使います。</small></span>
-          <select id="ocrSelect">
-            <option value="off">オフ</option>
-            <option value="after">録音停止後</option>
-            <option value="now">撮影直後</option>
-          </select>
-        </div>
-        <label class="row">
-          <span class="grow">過去の写真も OCR する<small>録音していないときに、新しい商談から順に少しずつ処理します。</small></span>
-          <span class="switch"><input type="checkbox" id="ocrPastToggle"><span></span></span>
-        </label>
-        <label class="row">
-          <span class="grow">意味検索<small>言い換え（「費用」で「コスト」など）でも履歴を探せるようにします。</small></span>
-          <span class="switch"><input type="checkbox" id="semanticToggle"><span></span></span>
-        </label>
+    <div class="section-title">写真（実験）</div>
+    <div class="menu">
+      <label class="row">
+        <span class="grow">写真の台形補正<small>撮った写真から資料・スライド・ホワイトボードの四隅を見つけて、正面から撮ったように補正します。外れたときは写真をタップして「範囲を直す」で直せます。初回のみ OpenCV.js（約10MB）を取得します。</small></span>
+        <span class="switch"><input type="checkbox" id="warpToggle"><span></span></span>
+      </label>
+      <label class="row">
+        <span class="grow">補正後は元画像を消す<small>容量を節約します。消した写真は範囲を直せなくなります。</small></span>
+        <span class="switch"><input type="checkbox" id="dropOrigToggle"><span></span></span>
+      </label>
+      <div class="row">
+        <span class="grow">写真の文字認識（OCR）<small>写真の文字を端末内で読み取り、検索と書き出し（&lt;ocr&gt;）に使います。初回のみモデル（約70MB）を取得します。録音中は LLM を優先するため「録音停止後」がおすすめです。</small></span>
+        <select id="ocrSelect" class="sel">
+          <option value="off">オフ</option>
+          <option value="after">録音停止後</option>
+          <option value="now">撮影直後</option>
+        </select>
       </div>
+      <label class="row">
+        <span class="grow">過去の写真も OCR する<small>録音していないときに、新しい商談から順に少しずつ処理します。</small></span>
+        <span class="switch"><input type="checkbox" id="ocrPastToggle"><span></span></span>
+      </label>
+      <div class="row"><span class="grow">状態<small id="photoInfo"></small></span></div>
+      <button id="clearPhotoModels">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/></svg>
+        ダウンロード済みの補正・OCR モデルを削除
+      </button>
+    </div>
+
+    <div class="section-title">意味検索（実験）</div>
+    <div class="menu">
+      <label class="row">
+        <span class="grow">言い換えでも検索する<small>履歴の検索で、言葉が違っても意味が近い発言・メモ・写真の文字を見つけます（「費用」で「コスト」の発言など）。端末内の埋め込みモデル（ruri-v3-30m、初回のみ約40MB）を使い、表記一致と合わせて並べます。意味だけで当たった商談には「関連」が付きます。</small></span>
+        <span class="switch"><input type="checkbox" id="semanticToggle"><span></span></span>
+      </label>
+      <div class="row"><span class="grow">状態<small id="semInfo"></small></span></div>
+    </div>
+
+    <div class="section-title">データの暗号化（パスキー）</div>
+    <div class="menu">
+      <div class="row">
+        <span class="grow">Face ID で商談データを暗号化<small id="vaultInfo"></small></span>
+        <button class="pill" id="vaultBtn" style="height:34px;font-size:13px"></button>
+      </div>
+      <button id="vaultLock">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>
+        今すぐロック
+      </button>
     </div>
 
     <div class="section-title">データ</div>
@@ -583,7 +636,7 @@ dialog::backdrop { background: oklch(0% 0 0 / .4); backdrop-filter: blur(2px); }
         この商談の全文を共有シートで送る
       </button>
     </div>
-    <p class="hint">「送る」は前回以降の差分を zip（テキスト＋写真）でダウンロードします。「ファイル」アプリ &gt; ダウンロード から開き、共有で Slack に送ってください。商談の切り替え・削除は左上のボタンから行えます。<br>音声は保存しません。テキストと写真はこの端末のブラウザ内にのみ保存されます。文字起こしはブラウザ標準の音声認識（iOS では Apple）を利用します。AI メモのモデルは初回のみ Hugging Face から、読み検索の辞書は初回のみ jsDelivr からダウンロードし、ブラウザ内にキャッシュします。</p>
+    <p class="hint">「送る」は前回以降の差分を zip（テキスト＋写真）でダウンロードします。「ファイル」アプリ &gt; ダウンロード から開き、共有で Slack に送ってください。商談の切り替え・削除は左上のボタンから行えます。<br>音声は保存しません。テキストと写真はこの端末のブラウザ内にのみ保存されます。文字起こしはブラウザ標準の音声認識（iOS では Apple）を利用します。AI メモと意味検索のモデルは初回のみ Hugging Face から、読み検索の辞書と台形補正・OCR のライブラリは初回のみ jsDelivr から、OCR のモデルは初回のみ PaddleOCR の配布元からダウンロードし、ブラウザ内にキャッシュします。写真・文字・ベクトルは端末の外に送りません。</p>
   </div>
 </dialog>
 
@@ -617,11 +670,55 @@ dialog::backdrop { background: oklch(0% 0 0 / .4); backdrop-filter: blur(2px); }
         </button>
       </div>
     </div>
-    <img id="imgView" alt="">
+    <div class="img-wrap" id="imgWrap"><img id="imgView" alt=""><svg class="ov" id="ocrOv" preserveAspectRatio="none"></svg></div>
+    <!-- 範囲の手動調整：元画像の上で四隅をドラッグする。指で隠れないよう拡大ルーペを出す -->
+    <div class="img-wrap" id="quadEd" hidden><img id="quadImg" alt="元の写真"><svg class="ov" id="quadOv" preserveAspectRatio="none"></svg><canvas id="loupe" width="220" height="220"></canvas></div>
     <p class="cap" id="imgCap"></p>
-    <p class="hint">写真の文字は長押しで選択できます（iPhone のテキスト認識）。</p>
+    <div class="img-actions" id="imgActions">
+      <button class="pill" id="quadBtn">範囲を直す</button>
+      <button class="pill" id="ocrBtn">OCR結果を見る</button>
+    </div>
+    <div class="img-actions" id="quadActions" hidden>
+      <button class="pill" id="quadApply">補正する</button>
+      <button class="pill" id="quadReset">元に戻す（補正なし）</button>
+      <button class="pill" id="quadCancel">やめる</button>
+    </div>
+    <div id="ocrBox" hidden>
+      <p class="ocr-meta" id="ocrMeta"></p>
+      <textarea id="ocrText" placeholder="読み取った文字はありません"></textarea>
+      <div class="img-actions"><button class="pill" id="ocrRedo">OCR し直す</button></div>
+    </div>
+    <p class="hint" id="imgHint">写真の文字は長押しで選択できます（iPhone のテキスト認識）。</p>
   </div>
 </dialog>
+
+<!-- パスキー暗号化：リカバリー鍵の表示（控えないと先に進めない） -->
+<dialog id="rkeyDlg">
+  <div class="sheet">
+    <div class="sheet-head"><h2 tabindex="-1" autofocus>リカバリー鍵を控えてください</h2></div>
+    <p class="hint" style="margin-top:0">パスキーを削除した・使えなくなったときに、商談データを取り出すための鍵です。この画面を閉じると二度と表示できません。パスワード管理アプリやメモなど、この端末以外の安全な場所に保存してください。</p>
+    <p class="rkey" id="rkeyText"></p>
+    <div class="img-actions"><button class="pill" id="rkeyCopy">コピー</button></div>
+    <label class="row" style="display:flex;gap:8px;align-items:center;margin:14px 2px;font-size:14px"><input type="checkbox" id="rkeyOk"> リカバリー鍵を安全な場所に控えた</label>
+    <div class="img-actions"><button class="pill" id="rkeyNext" disabled>暗号化を始める</button><button class="pill" id="rkeyCancel">やめる</button></div>
+  </div>
+</dialog>
+
+<div id="lockScreen" hidden>
+  <div class="lock-card">
+    <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>
+    <h2>ロックされています</h2>
+    <p>商談データはこの端末のパスキーで暗号化されています。Face ID（パスキー）で開いてください。</p>
+    <button class="pill" id="unlockBtn">Face ID で開く</button>
+    <div><button class="link" id="recoverToggle">リカバリー鍵で開く</button></div>
+    <div id="recoverBox" hidden>
+      <input type="text" id="recoverInput" placeholder="XXXX-XXXX-…" autocomplete="off" autocapitalize="characters" spellcheck="false">
+      <label><input type="checkbox" id="rewrapChk" checked> 新しいパスキーを登録し直す</label>
+      <button class="pill" id="recoverGo">リカバリー鍵で開く</button>
+    </div>
+    <p class="lock-err" id="lockErr"></p>
+  </div>
+</div>
 
 <script>
 (() => {
@@ -668,12 +765,22 @@ dialog::backdrop { background: oklch(0% 0 0 / .4); backdrop-filter: blur(2px); }
         t.onerror = () => reject(t.error);
       });
     };
-    return {
+    // 保存されたままの形で読み書きする（暗号化の一括変換と鍵の保存に使う）
+    const raw = {
       put: (store, v) => tx(store, 'readwrite', (s) => s.put(v)),
       get: (store, k) => tx(store, 'readonly', (s) => s.get(k)),
       all: (store) => tx(store, 'readonly', (s) => s.getAll()),
-      del: (store, k) => tx(store, 'readwrite', (s) => s.delete(k)),
       imagesOf: (sid) => tx('images', 'readonly', (s) => s.index('session').getAll(sid)),
+    };
+    // 通常の読み書きは Vault を通す（暗号化がオンなら書くときに暗号化し、読むときに復号する）
+    const openAll = (store, list) => Promise.all(list.map((r) => Vault.open(store, r)));
+    return {
+      raw,
+      put: async (store, v) => raw.put(store, await Vault.seal(store, v)),
+      get: async (store, k) => Vault.open(store, await raw.get(store, k)),
+      all: async (store) => openAll(store, await raw.all(store)),
+      del: (store, k) => tx(store, 'readwrite', (s) => s.delete(k)),
+      imagesOf: async (sid) => openAll('images', await raw.imagesOf(sid)),
       // インデックスの値が一致するレコードをまとめて消す（商談の削除時に vectors を消す）
       delWhere: (store, index, key) => tx(store, 'readwrite', (s) => {
         s.index(index).openKeyCursor(IDBKeyRange.only(key)).onsuccess = (e) => {
@@ -681,6 +788,188 @@ dialog::backdrop { background: oklch(0% 0 0 / .4); backdrop-filter: blur(2px); }
           if (c) { s.delete(c.primaryKey); c.continue(); }
         };
       }),
+    };
+  })();
+
+  // ---------- 暗号化（パスキーの PRF から鍵を取り出し、IndexedDB の中身を AES-GCM で暗号化） ----------
+  // データ鍵（DEK）をパスキー由来の鍵（KEK-P）とリカバリー鍵由来の鍵（KEK-R）でそれぞれ包んで keys に保存する。
+  // DEK そのものは保存せず、ロック解除中だけ取り出し不可の CryptoKey としてメモリに置く。サーバーには何も送らない
+  const Vault = (() => {
+    // 暗号化しないフィールド（一覧の並べ替えとインデックスに使う）
+    const SEALED = { sessions: ['id', 'createdAt', 'updatedAt'], images: ['id', 'session', 'ts'], vectors: ['id', 'sessionId'] };
+    const SALT = 'livescribe-v1';
+    const INFO_P = 'livescribe-kek-passkey-v1', INFO_R = 'livescribe-kek-recovery-v1';
+    const te = new TextEncoder(), td = new TextDecoder();
+    const rnd = (n) => crypto.getRandomValues(new Uint8Array(n));
+    let cfg = null, dek = null;
+
+    // レコードを1つのバイト列にする。Blob と Float32Array は JSON にせず、後ろにそのまま並べる
+    const pack = async (obj) => {
+      const plain = {}, meta = {}, bins = [];
+      for (const [k, v] of Object.entries(obj)) {
+        if (v instanceof Blob) { meta[k] = { t: 'blob', type: v.type, i: bins.length }; bins.push(new Uint8Array(await v.arrayBuffer())); }
+        else if (v instanceof Float32Array) { meta[k] = { t: 'f32', i: bins.length }; bins.push(new Uint8Array(v.buffer, v.byteOffset, v.byteLength).slice()); }
+        else plain[k] = v;
+      }
+      const head = te.encode(JSON.stringify({ plain, meta, sizes: bins.map((b) => b.length) }));
+      const out = new Uint8Array(4 + head.length + bins.reduce((n, b) => n + b.length, 0));
+      new DataView(out.buffer).setUint32(0, head.length);
+      out.set(head, 4);
+      let at = 4 + head.length;
+      for (const b of bins) { out.set(b, at); at += b.length; }
+      return out;
+    };
+    const unpack = (u8) => {
+      const n = new DataView(u8.buffer, u8.byteOffset).getUint32(0);
+      const { plain, meta, sizes } = JSON.parse(td.decode(u8.subarray(4, 4 + n)));
+      const offs = [];
+      let at = 4 + n;
+      for (const s of sizes) { offs.push(at); at += s; }
+      for (const [k, m] of Object.entries(meta)) {
+        const b = u8.slice(offs[m.i], offs[m.i] + sizes[m.i]);
+        plain[k] = m.t === 'blob' ? new Blob([b], { type: m.type }) : new Float32Array(b.buffer);
+      }
+      return plain;
+    };
+    // 別のレコードの暗号文に差し替えられても気付けるよう、ストア名と ID を認証付きデータに入れる
+    const aad = (store, id) => te.encode(`${store}:${id}`);
+    const seal = async (store, v) => {
+      if (!cfg || !SEALED[store] || !v) return v;
+      if (!dek) throw new Error('ロック中のため保存できません');
+      const iv = rnd(12);
+      const ct = await crypto.subtle.encrypt({ name: 'AES-GCM', iv, additionalData: aad(store, v.id) }, dek, await pack(v));
+      const out = { enc: { v: 1, iv, ct } };
+      for (const k of SEALED[store]) if (v[k] !== undefined) out[k] = v[k];
+      return out;
+    };
+    const open = async (store, r) => {
+      if (!r?.enc) return r; // 暗号化前のデータ（オンにした直後の変換途中など）はそのまま
+      if (!dek) throw new Error('ロック中のため読めません');
+      const pt = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: r.enc.iv, additionalData: aad(store, r.id) }, dek, r.enc.ct);
+      return unpack(new Uint8Array(pt));
+    };
+
+    const kekFrom = async (bytes, info) => {
+      const base = await crypto.subtle.importKey('raw', bytes, 'HKDF', false, ['deriveKey']);
+      return crypto.subtle.deriveKey({ name: 'HKDF', hash: 'SHA-256', salt: new Uint8Array(32), info: te.encode(info) },
+        base, { name: 'AES-KW', length: 256 }, false, ['wrapKey', 'unwrapKey']);
+    };
+    const unwrap = (wrapped, kek, extractable = false) =>
+      crypto.subtle.unwrapKey('raw', wrapped, kek, 'AES-KW', { name: 'AES-GCM', length: 256 }, extractable, ['encrypt', 'decrypt']);
+    const wrap = (key, kek) => crypto.subtle.wrapKey('raw', key, kek, 'AES-KW');
+
+    const supported = () => !!(window.PublicKeyCredential && navigator.credentials?.create);
+    // パスキーを作る（作成時の PRF の結果には頼らず、続けて get で値を取る）
+    const createPasskey = async () => {
+      if (!supported()) throw new Error('このブラウザはパスキーに対応していません');
+      const c = await navigator.credentials.create({ publicKey: {
+        rp: { name: 'Live Scribe', id: location.hostname },
+        user: { id: rnd(16), name: 'Live Scribe データ鍵', displayName: 'Live Scribe データ鍵' },
+        challenge: rnd(32),
+        pubKeyCredParams: [{ type: 'public-key', alg: -7 }, { type: 'public-key', alg: -257 }],
+        authenticatorSelection: { residentKey: 'required', userVerification: 'required' },
+        extensions: { prf: {} },
+      } });
+      if (c.getClientExtensionResults?.().prf?.enabled === false) throw new Error('このパスキーは PRF に対応していません（iCloud キーチェーンか Google パスワードマネージャーのパスキーが必要です）');
+      return c.rawId;
+    };
+    // 署名はサーバーで検証しない（ログインではなく、PRF で鍵の素を取り出すのが目的）
+    const prfOf = async (credId) => {
+      const a = await navigator.credentials.get({ publicKey: {
+        challenge: rnd(32), rpId: location.hostname, userVerification: 'required',
+        allowCredentials: [{ type: 'public-key', id: credId }],
+        extensions: { prf: { eval: { first: te.encode(SALT) } } },
+      } });
+      const r = a?.getClientExtensionResults?.().prf?.results?.first;
+      if (!r) throw new Error('パスキーから鍵を取り出せませんでした（PRF 非対応の環境です）');
+      return new Uint8Array(r);
+    };
+
+    // リカバリー鍵は 32 バイトの乱数を Base32（4文字ごとに区切り）で表示する
+    const B32 = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
+    const toB32 = (u8) => {
+      let bits = 0, val = 0, out = '';
+      for (const b of u8) {
+        val = (val << 8) | b; bits += 8;
+        while (bits >= 5) { out += B32[(val >>> (bits - 5)) & 31]; bits -= 5; }
+        val &= (1 << bits) - 1;
+      }
+      if (bits) out += B32[(val << (5 - bits)) & 31];
+      return out.match(/.{1,4}/g).join('-');
+    };
+    const fromB32 = (s) => {
+      const out = [];
+      let bits = 0, val = 0;
+      for (const ch of s.toUpperCase().replace(/[^A-Z2-7]/g, '')) {
+        val = (val << 5) | B32.indexOf(ch); bits += 5;
+        if (bits >= 8) { out.push((val >>> (bits - 8)) & 255); bits -= 8; val &= (1 << bits) - 1; }
+      }
+      return new Uint8Array(out);
+    };
+
+    // 全レコードを今の設定（cfg と dek）で書き直す。toPlain のときは復号した形で書く
+    const rewriteAll = async (onProgress, toPlain = false) => {
+      const stores = Object.keys(SEALED);
+      const lists = [];
+      for (const s of stores) lists.push(await raw().all(s));
+      const total = lists.reduce((n, l) => n + l.length, 0);
+      let done = 0;
+      for (let i = 0; i < stores.length; i++) {
+        for (const r of lists[i]) {
+          const v = await open(stores[i], r);
+          await raw().put(stores[i], toPlain ? v : await seal(stores[i], v));
+          onProgress?.(++done, total);
+        }
+      }
+    };
+    const raw = () => DB.raw;
+
+    // 初期設定：パスキー作成 → PRF → DEK を作って二重に包む。リカバリー鍵を見せて控えてもらってから commit する
+    const setup = async (credId) => {
+      const prf = await prfOf(credId);
+      const dekX = await crypto.subtle.generateKey({ name: 'AES-GCM', length: 256 }, true, ['encrypt', 'decrypt']);
+      const rkey = rnd(32);
+      const kp = await kekFrom(prf, INFO_P), kr = await kekFrom(rkey, INFO_R);
+      const next = { id: 'main', v: 1, credId, salt: SALT, wrappedP: await wrap(dekX, kp), wrappedR: await wrap(dekX, kr), createdAt: Date.now() };
+      return {
+        recovery: toB32(rkey),
+        commit: async (onProgress) => {
+          await raw().put('keys', next);
+          cfg = next; dek = await unwrap(next.wrappedP, kp);
+          await rewriteAll(onProgress);
+        },
+      };
+    };
+    const unlock = async () => {
+      const kp = await kekFrom(await prfOf(cfg.credId), INFO_P);
+      try { dek = await unwrap(cfg.wrappedP, kp); } catch { throw new Error('パスキーから取り出した鍵が合いません。リカバリー鍵で開いてください'); }
+    };
+    // リカバリー鍵で開く。makeCred を渡すと、鍵が正しいと確かめた後で新しいパスキーを作り、DEK を包み直す
+    // （データの再暗号化は不要）。開けたがパスキーの登録に失敗したときは、そのエラーを返す
+    const recover = async (text, makeCred = null) => {
+      const kr = await kekFrom(fromB32(text), INFO_R);
+      let dekX;
+      try { dekX = await unwrap(cfg.wrappedR, kr, true); } catch { throw new Error('リカバリー鍵が違います'); }
+      dek = await unwrap(cfg.wrappedR, kr);
+      if (!makeCred) return true;
+      try {
+        const credId = await makeCred();
+        const kp = await kekFrom(await prfOf(credId), INFO_P);
+        cfg = { ...cfg, credId, wrappedP: await wrap(dekX, kp) };
+        await raw().put('keys', cfg);
+        return true;
+      } catch (e) { return e; }
+    };
+    const disable = async (onProgress) => {
+      await rewriteAll(onProgress, true);
+      await DB.del('keys', 'main');
+      cfg = null; dek = null;
+    };
+    return {
+      load: async () => { cfg = (await raw().get('keys', 'main')) || null; },
+      on: () => !!cfg, locked: () => !!cfg && !dek, supported,
+      seal, open, createPasskey, setup, unlock, recover, disable,
+      forget: () => { dek = null; },
     };
   })();
 
@@ -702,6 +991,7 @@ dialog::backdrop { background: oklch(0% 0 0 / .4); backdrop-filter: blur(2px); }
     '5. 未確認事項と、次に顧客へ聞くべき質問',
   ].join('\n');
   const IMAGES_INSTR = '- images は商談中に撮った写真（ホワイトボード、帳票、既存システムの画面など）で、同じ zip に入っています。transcript 内の［写真］の位置で撮影しました。画面や帳票の再現、要件の裏付けに使ってください。';
+  const OCR_INSTR = '- images 内の ocr は写真から端末内で自動認識した文字で、誤りを含みます。固有名詞は context と照らして補正し、判断に迷うときは写真そのものを確認してください。';
   const newId = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
   const fresh = (keep = {}) => ({
     id: newId(), createdAt: Date.now(), updatedAt: Date.now(), title: '',
@@ -729,7 +1019,7 @@ dialog::backdrop { background: oklch(0% 0 0 / .4); backdrop-filter: blur(2px); }
   // 書き込みはまとめて行う（発言のたびに IndexedDB へ書かない）
   let saveTimer = null;
   const flush = () => { clearTimeout(saveTimer); saveTimer = null; S.updatedAt = Date.now(); return DB.put('sessions', S).catch(() => {}); };
-  const save = () => { clearTimeout(saveTimer); saveTimer = setTimeout(flush, 400); Yomi.touch(); };
+  const save = () => { clearTimeout(saveTimer); saveTimer = setTimeout(flush, 400); Yomi.touch(); Semantic.touch(); };
   document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden' && saveTimer) flush(); });
   window.addEventListener('pagehide', () => { if (saveTimer) flush(); });
 
@@ -794,7 +1084,10 @@ dialog::backdrop { background: oklch(0% 0 0 / .4); backdrop-filter: blur(2px); }
 
   const segBody = (seg) => {
     if (seg.kind === 'note') return '<span class="tag">メモ</span>' + esc(seg.text);
-    if (seg.kind === 'image') return `<img class="thumb" data-img="${seg.img}" alt="写真">` + (seg.text ? `<span class="cap">${esc(seg.text)}</span>` : '');
+    if (seg.kind === 'image') {
+      const b = Photos.badge(seg);
+      return `<span class="ph"><img class="thumb" data-img="${seg.img}" alt="写真">${b ? `<span class="badge ${b[1]}">${esc(b[0])}</span>` : ''}</span>` + (seg.text ? `<span class="cap">${esc(seg.text)}</span>` : '');
+    }
     return P.hl ? hl(seg.text) : esc(seg.text);
   };
   const segHTML = (seg, i) =>
@@ -895,20 +1188,138 @@ dialog::backdrop { background: oklch(0% 0 0 / .4); backdrop-filter: blur(2px); }
       // メモ欄に入力中の文字があれば写真の説明として使う
       const caption = noteInput.value.trim();
       if (caption) { noteInput.value = ''; $('#noteAdd').disabled = true; }
-      appendSeg({ kind: 'image', ts, img: id, text: caption, star: false });
+      // 補正と OCR は裏で行う（設定に応じて順番待ちに入れる）
+      appendSeg({ kind: 'image', ts, img: id, text: caption, star: false, ...(P.warp ? { warp: 'queued' } : {}), ...(P.ocr !== 'off' ? { ocr: { status: 'queued' } } : {}) });
       scrollBottom(); flush();
       toast('写真を挟み込みました');
+      Photos.kick();
     } catch (err) { toast(err.message || '写真を保存できませんでした'); }
   };
-  let viewing = -1;
+  let viewing = -1, showOcr = false, quadState = null;
   const openImage = async (i) => {
     const seg = S.segs[i]; if (!seg) return;
-    viewing = i;
-    $('#imgView').src = (await imgUrl(seg.img)) || '';
+    viewing = i; showOcr = false; closeQuadEd();
     $('#imgTitle').textContent = `写真 ${fmt(seg.ts)}`;
     $('#imgCap').textContent = seg.text || '';
     $('#imgDlg').showModal();
+    renderImgPanel();
   };
+  // 写真ダイアログの中身（画像・OCR の枠と本文・ボタン）を seg の今の状態に合わせる
+  async function renderImgPanel() {
+    const seg = S.segs[viewing];
+    if (!seg || !$('#imgDlg').open || quadState) return;
+    const rec = await DB.get('images', seg.img).catch(() => null);
+    const url = (await imgUrl(seg.img)) || '';
+    if ($('#imgView').getAttribute('src') !== url) $('#imgView').src = url;
+    const ov = $('#ocrOv');
+    ov.setAttribute('viewBox', `0 0 ${rec?.w || 1} ${rec?.h || 1}`);
+    ov.innerHTML = showOcr && seg.ocr?.lines ? seg.ocr.lines.map((l) => `<polygon class="box" points="${l.poly.map((p) => p.join(',')).join(' ')}"/>`).join('') : '';
+    // 補正済みで元画像を消した写真は、範囲を直せない
+    $('#quadBtn').disabled = !rec || (seg.warped && !rec.original);
+    $('#quadBtn').textContent = seg.warp === 'review' ? '範囲を確認して直す' : '範囲を直す';
+    $('#ocrBtn').textContent = showOcr ? 'OCR結果を隠す' : 'OCR結果を見る';
+    $('#ocrBox').hidden = !showOcr;
+    if (!showOcr) return;
+    const o = seg.ocr;
+    $('#ocrMeta').textContent = !o ? (P.ocr === 'off' ? 'OCR はオフです（「OCR し直す」で、この写真だけ読み取れます）' : 'まだ読み取っていません')
+      : o.status === 'done' ? [o.edited ? '手で修正済み' : '自動で読み取り', o.lines && `${o.lines.length}行`, o.score != null && `平均スコア ${o.score}`, o.ms != null && `${o.ms}ms`, seg.warped && '補正あり'].filter(Boolean).join(' · ')
+      : o.status === 'failed' ? `読み取りに失敗しました（${o.error || '不明なエラー'}）`
+      : o.status === 'running' ? '読み取り中…' : '順番待ち（録音中は停止後に読み取ります）';
+    if (document.activeElement !== $('#ocrText')) $('#ocrText').value = o?.text || '';
+  }
+  $('#ocrBtn').onclick = () => { showOcr = !showOcr; renderImgPanel(); };
+  // 手で直した OCR 結果は、再処理で上書きしない
+  $('#ocrText').addEventListener('input', (e) => {
+    const seg = S.segs[viewing]; if (!seg) return;
+    seg.ocr = { ...(seg.ocr || {}), status: 'done', text: e.target.value, edited: true };
+    hayCache.delete(S.id); save(); renderOne(viewing);
+  });
+  $('#ocrRedo').onclick = () => {
+    const seg = S.segs[viewing]; if (!seg) return;
+    if (seg.ocr?.edited && !confirm('手で直した OCR 結果を、読み取り直した結果で上書きしますか？')) return;
+    seg.ocr = { status: 'queued' }; save(); renderOne(viewing);
+    Photos.rerun(S.id, seg.img); renderImgPanel();
+  };
+
+  // 範囲の手動調整：元画像の上で四隅をドラッグする（一番近い角をつかむ）。指の上に拡大ルーペを出す
+  const closeQuadEd = () => {
+    $('#quadEd').hidden = true; $('#imgWrap').hidden = false;
+    $('#quadActions').hidden = true; $('#imgActions').hidden = false;
+    $('#loupe').style.display = 'none';
+    if (quadState?.url) URL.revokeObjectURL(quadState.url);
+    quadState = null;
+  };
+  const drawQuad = () => {
+    const { q, W, H } = quadState, r = Math.max(W, H) * 0.025;
+    $('#quadOv').innerHTML = `<polygon class="quad" points="${q.map((p) => p.join(',')).join(' ')}"/>` +
+      q.map((p) => `<circle class="h" cx="${p[0]}" cy="${p[1]}" r="${r}"/>`).join('');
+  };
+  $('#quadBtn').onclick = async () => {
+    const seg = S.segs[viewing]; if (!seg) return;
+    const rec = await DB.get('images', seg.img).catch(() => null); if (!rec) return;
+    const src = rec.original || rec.blob;
+    const bmp = await createImageBitmap(src);
+    const W = bmp.width, H = bmp.height; bmp.close?.();
+    const q = seg.quad?.length === 4 ? seg.quad.map((p) => [...p]) : [[W * .06, H * .06], [W * .94, H * .06], [W * .94, H * .94], [W * .06, H * .94]].map((p) => p.map(Math.round));
+    quadState = { img: seg.img, W, H, q, drag: -1, url: URL.createObjectURL(src) };
+    $('#quadImg').src = quadState.url;
+    $('#quadOv').setAttribute('viewBox', `0 0 ${W} ${H}`);
+    $('#quadEd').hidden = false; $('#imgWrap').hidden = true;
+    $('#quadActions').hidden = false; $('#imgActions').hidden = true; $('#ocrBox').hidden = true;
+    $('#quadReset').disabled = !seg.warped;
+    drawQuad();
+  };
+  const quadEd = $('#quadEd');
+  const toImgXY = (e) => {
+    const b = $('#quadOv').getBoundingClientRect();
+    return { x: ((e.clientX - b.left) / b.width) * quadState.W, y: ((e.clientY - b.top) / b.height) * quadState.H, px: e.clientX - b.left, py: e.clientY - b.top, b };
+  };
+  const loupe = ({ px, py, b }) => {
+    const c = $('#loupe'), g = c.getContext('2d');
+    const [x, y] = quadState.q[quadState.drag];
+    const span = (110 / 3) * (quadState.W / b.width); // 3倍に拡大
+    g.fillStyle = '#000'; g.fillRect(0, 0, c.width, c.height);
+    g.drawImage($('#quadImg'), x - span / 2, y - span / 2, span, span, 0, 0, c.width, c.height);
+    g.strokeStyle = getComputedStyle(document.documentElement).getPropertyValue('--accent') || '#2f6fed';
+    g.lineWidth = 2;
+    g.beginPath(); g.moveTo(c.width / 2, 0); g.lineTo(c.width / 2, c.height); g.moveTo(0, c.height / 2); g.lineTo(c.width, c.height / 2); g.stroke();
+    c.style.display = 'block';
+    c.style.left = `${Math.min(b.width - 110, Math.max(0, px - 55))}px`;
+    c.style.top = `${py - 150 < 0 ? py + 40 : py - 150}px`;
+  };
+  const moveHandle = (e) => {
+    if (!quadState || quadState.drag < 0) return;
+    const p = toImgXY(e);
+    quadState.q[quadState.drag] = [Math.round(Math.max(0, Math.min(quadState.W, p.x))), Math.round(Math.max(0, Math.min(quadState.H, p.y)))];
+    drawQuad(); loupe(p);
+  };
+  quadEd.addEventListener('pointerdown', (e) => {
+    if (!quadState) return;
+    const { x, y } = toImgXY(e);
+    const d = quadState.q.map(([qx, qy]) => Math.hypot(qx - x, qy - y));
+    const i = d.indexOf(Math.min(...d));
+    if (d[i] > Math.max(quadState.W, quadState.H) * 0.3) return;
+    quadState.drag = i; quadEd.setPointerCapture(e.pointerId); e.preventDefault(); moveHandle(e);
+  });
+  quadEd.addEventListener('pointermove', moveHandle);
+  const endDrag = () => { if (quadState) quadState.drag = -1; $('#loupe').style.display = 'none'; };
+  quadEd.addEventListener('pointerup', endDrag);
+  quadEd.addEventListener('pointercancel', endDrag);
+  $('#quadApply').onclick = async () => {
+    if (!quadState) return;
+    const { img, q } = quadState;
+    closeQuadEd(); toast('補正しています…');
+    try { await Photos.manualWarp(S.id, img, q); toast('補正しました'); } catch (e) { toast(`補正できませんでした（${e.message || e}）`); }
+    renderImgPanel();
+  };
+  $('#quadReset').onclick = async () => {
+    if (!quadState) return;
+    const { img } = quadState;
+    closeQuadEd();
+    await Photos.unwarp(S.id, img); toast('補正前の写真に戻しました'); renderImgPanel();
+  };
+  $('#quadCancel').onclick = () => { closeQuadEd(); renderImgPanel(); };
+  $('#imgDlg').addEventListener('close', closeQuadEd);
   $('#closeImg').onclick = () => $('#imgDlg').close();
   $('#imgDlg').addEventListener('click', (e) => { if (e.target.id === 'imgDlg') $('#imgDlg').close(); });
   $('#imgDelete').onclick = async () => {
@@ -1084,6 +1495,8 @@ dialog::backdrop { background: oklch(0% 0 0 / .4); backdrop-filter: blur(2px); }
     renderDrawer();
     // AI メモがオンなら、録音を止めたタイミングで商談名を自動で付ける（手で付けた名前は上書きしない）
     if (P.ai && (!S.title || S.titleAuto)) AI.requestTitle(S);
+    // 録音停止後にまとめて：写真の OCR、意味検索の索引
+    Photos.kick(); Photos.backfill(); Semantic.index(S); Semantic.backfill(30000);
   }
   $('#recBtn').onclick = () => (running ? stop() : start());
 
@@ -1341,6 +1754,8 @@ dialog::backdrop { background: oklch(0% 0 0 / .4); backdrop-filter: blur(2px); }
     const start = (name) => {
       const d = defs.get(name);
       if (!d) throw new Error(`未定義の Worker: ${name}`);
+      // 低メモリの端末では、重いモデルを同時に1つだけ載せる（手の空いている他の Worker を先に止める）
+      if (LOW_MEM) for (const [n, w] of live) if (!w.pending.size) stop(n, 'swap');
       const w = { worker: new Worker(d.url, d.module ? { type: 'module' } : undefined), pending: new Map(), seq: 0, timer: 0 };
       w.worker.onmessage = ({ data }) => {
         const p = data?.id != null && w.pending.get(data.id);
@@ -1401,6 +1816,293 @@ dialog::backdrop { background: oklch(0% 0 0 / .4); backdrop-filter: blur(2px); }
     return { add, cancel, busy: () => !!current, size: () => queue.length + (current ? 1 : 0), current: () => current?.label ?? null };
   })();
 
+  const mbOf = (n) => `${Math.round(n / 1e6)}MB`;
+
+  // ---------- 写真の台形補正と OCR（撮った写真はすぐ保存・表示し、補正と文字認識は裏で1枚ずつ行う） ----------
+  const OCR_MODEL = 'v6-small', OCR_ENGINE = 'paddle-v6-small';
+  const PHOTO_CACHES = ['cv-lib-v1', 'ocr-models-v1'];
+  Workers.define('cv', { url: 'cv-worker.js' });
+  Workers.define('ocr', { url: 'ocr-worker.js', module: true, onEvent: (d) => { if (d.type === 'progress') Photos.progress(d); } });
+  const Photos = (() => {
+    const pending = new Set();   // 順番待ち・処理中のジョブ（同じ写真を二重に積まない）
+    const ocrInput = new Map();  // 補正直後の OCR 用画像（CLAHE 済み）。保存せず、なければ保存画像を使う
+    let dl = null;
+
+    const segOf = async (sid, img) => (sid === S.id ? S : await DB.get('sessions', sid).catch(() => null))?.segs.find((x) => x.img === img);
+    // 写真の seg を書き換える。開いている商談はメモリ上の S に、それ以外は DB の商談に書く（並び順は変えない）
+    const edit = async (sid, img, fn) => {
+      if (sid !== S.id) {
+        const sess = await DB.get('sessions', sid).catch(() => null);
+        // 読み込み中にその商談が開かれたら、下のメモリ上の S に書く
+        if (sid !== S.id) {
+          const seg = sess?.segs.find((x) => x.img === img);
+          if (!seg) return null;
+          fn(seg); await DB.put('sessions', sess).catch(() => {}); hayCache.delete(sid);
+          return seg;
+        }
+      }
+      const i = S.segs.findIndex((x) => x.img === img);
+      if (i < 0) return null;
+      fn(S.segs[i]); save(); renderOne(i); hayCache.delete(S.id);
+      if (viewing === i) renderImgPanel();
+      return S.segs[i];
+    };
+    const putImg = async (rec) => {
+      await DB.put('images', rec);
+      const u = imgUrls.get(rec.id);
+      if (u) { URL.revokeObjectURL(u); imgUrls.delete(rec.id); }
+    };
+    const sizeOf = async (blob) => { const b = await createImageBitmap(blob); const r = { w: b.width, h: b.height }; b.close?.(); return r; };
+
+    // 自動補正：四隅が見つかれば補正した画像を保存し、元画像は original に残す。自信がなければ「範囲を確認」
+    const autoWarp = async (sid, img) => {
+      const seg0 = await segOf(sid, img);
+      if (!seg0 || seg0.quadManual || seg0.warp !== 'queued') return;
+      const rec = await DB.get('images', img);
+      if (!rec) return;
+      const src = rec.original || rec.blob;
+      try {
+        const r = await Workers.call('cv', { type: 'auto', blob: src, forOcr: P.ocr !== 'off' });
+        const review = r.confidence < 0.65;
+        if ((await segOf(sid, img))?.quadManual) return; // 処理中に手で直された
+        if (r.blob) {
+          await putImg({ ...rec, blob: r.blob, w: r.w, h: r.h, original: P.dropOriginal && !review ? undefined : src });
+          if (r.ocrBlob) ocrInput.set(img, r.ocrBlob);
+        }
+        await edit(sid, img, (seg) => { seg.quad = r.quad; seg.warped = !!r.blob; seg.warp = review ? 'review' : 'done'; });
+      } catch (e) {
+        await edit(sid, img, (seg) => { seg.warp = 'failed'; });
+      }
+    };
+    // 手で直した四隅で、元画像から作り直す
+    const manualWarp = (sid, img, quad) => Jobs.add(`warp:${img}`, async () => {
+      const rec = await DB.get('images', img);
+      if (!rec) return;
+      const src = rec.original || rec.blob;
+      const r = await Workers.call('cv', { type: 'warp', blob: src, quad, forOcr: P.ocr !== 'off' });
+      await putImg({ ...rec, blob: r.blob, w: r.w, h: r.h, original: src });
+      if (r.ocrBlob) ocrInput.set(img, r.ocrBlob);
+      const seg = await edit(sid, img, (s) => { s.quad = quad; s.quadManual = true; s.warped = true; s.warp = 'done'; if (P.ocr !== 'off' && !s.ocr?.edited) s.ocr = { status: 'queued' }; });
+      if (seg?.ocr?.status === 'queued') queueOcr(sid, img, 3);
+    }, { prio: 3 });
+    // 補正をやめて元画像に戻す
+    const unwarp = async (sid, img) => {
+      const rec = await DB.get('images', img);
+      if (!rec?.original) return;
+      await putImg({ ...rec, blob: rec.original, original: undefined, ...(await sizeOf(rec.original)) });
+      ocrInput.delete(img);
+      const seg = await edit(sid, img, (s) => { s.quad = null; s.quadManual = true; s.warped = false; s.warp = 'skipped'; if (P.ocr !== 'off' && !s.ocr?.edited) s.ocr = { status: 'queued' }; });
+      if (seg?.ocr?.status === 'queued') queueOcr(sid, img, 3);
+    };
+
+    const runOcr = async (sid, img, force = false) => {
+      const seg0 = await segOf(sid, img);
+      if (!seg0 || (seg0.ocr?.edited && !force)) return;
+      const rec = await DB.get('images', img);
+      if (!rec) return;
+      await edit(sid, img, (seg) => { seg.ocr = { ...(seg.ocr || {}), status: 'running' }; });
+      try {
+        const r = await Workers.call('ocr', { type: 'ocr', blob: ocrInput.get(img) || rec.blob, model: OCR_MODEL });
+        ocrInput.delete(img); dl = null;
+        await edit(sid, img, (seg) => {
+          if (seg.ocr?.edited && !force) return;
+          seg.ocr = { status: 'done', engine: OCR_ENGINE, text: r.text, lines: r.lines, score: r.score, ms: r.ms, vertical: r.vertical };
+        });
+        Semantic.touch(sid);
+      } catch (e) {
+        dl = null;
+        await edit(sid, img, (seg) => { seg.ocr = { status: 'failed', error: String(e.message || e).slice(0, 200) }; });
+      }
+    };
+
+    const enqueue = (key, fn, prio = 0) => {
+      if (pending.has(key)) return;
+      pending.add(key); updInfo();
+      Jobs.add(key, fn, { prio }).catch(() => {}).finally(() => { pending.delete(key); updInfo(); });
+    };
+    const queueOcr = (sid, img, prio = 0) => enqueue(`ocr:${img}`, () => runOcr(sid, img), prio);
+    // 中断されたまま（running）の写真も、もう一度処理する
+    const needsOcr = (seg) => seg.kind === 'image' && !seg.ocr?.edited && (!seg.ocr || seg.ocr.status === 'queued' || seg.ocr.status === 'running');
+    const ocrDue = () => P.ocr === 'now' || (P.ocr === 'after' && !running);
+
+    // 開いている商談の写真を処理する。補正を先にまとめて積み、OCR は後でまとめる（モデルの入れ替えを減らす）
+    const kick = () => {
+      const imgs = S.segs.filter((x) => x.kind === 'image');
+      if (P.warp) for (const x of imgs) if (x.warp === 'queued' && !x.quadManual) enqueue(`warp:${x.img}`, () => autoWarp(S.id, x.img));
+      if (ocrDue()) for (const x of imgs) if (needsOcr(x)) queueOcr(S.id, x.img);
+    };
+    // ほかの商談の写真（設定で「過去の写真も OCR する」）：録音していないときに、新しい商談から少しずつ
+    let bfTimer = 0;
+    const backfill = (ms = 5000) => {
+      clearTimeout(bfTimer);
+      if (P.ocr === 'off' || !P.ocrPast) return;
+      bfTimer = setTimeout(async () => {
+        if (running || Jobs.size()) return backfill(30000);
+        const list = (await DB.all('sessions').catch(() => [])).sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
+        for (const s of list) {
+          if (s.id === S.id) continue;
+          const todo = s.segs.filter(needsOcr);
+          if (!todo.length) continue;
+          todo.forEach((x) => queueOcr(s.id, x.img));
+          return backfill(10000);
+        }
+      }, ms);
+    };
+
+    // サムネイルの状態バッジ
+    const badge = (seg) => {
+      if (seg.warp === 'queued' && P.warp) return ['補正待ち', ''];
+      if (seg.warp === 'review') return ['範囲を確認', 'warn'];
+      const o = seg.ocr?.status;
+      if (o === 'running') return [dl ? `モデル取得中 ${Math.round((dl.loaded / dl.total) * 100)}%` : 'OCR中', ''];
+      if (P.ocr !== 'off' && (o === 'queued' || !seg.ocr)) return ['OCR待ち', ''];
+      if (o === 'failed') return ['OCR失敗', 'ng'];
+      if (o === 'done' && seg.ocr.text) return ['文字あり', 'ok'];
+      return null;
+    };
+    const progress = (d) => {
+      dl = d.total ? d : null;
+      S.segs.forEach((x, i) => { if (x.ocr?.status === 'running') renderOne(i); });
+      updInfo();
+    };
+    const updInfo = () => {
+      const el = $('#photoInfo');
+      if (!el) return;
+      const n = pending.size;
+      el.textContent = dl ? `OCR モデルを取得中 ${mbOf(dl.loaded)} / ${mbOf(dl.total)}` : n ? `処理待ち ${n}件（録音中は AI メモを優先します）` : (P.warp || P.ocr !== 'off') ? '待機中' : 'オフ';
+    };
+    return { kick, backfill, badge, progress, updInfo, manualWarp, unwarp, rerun: (sid, img) => enqueue(`ocr:${img}`, () => runOcr(sid, img, true), 3), edit };
+  })();
+
+  // ---------- 意味検索（埋め込みベクトルと文字列一致を RRF で合成） ----------
+  const SEM_MODEL = 'ruri-v3-30m-q8';
+  // ruri-v3 は無関係な文どうしでも 0.75 前後になるため、設計時の 0.5 ではなく 0.8 を下限にする
+  const SEM_MIN = 0.8;
+  Workers.define('embed', { url: 'embed-worker.js', module: true, onEvent: (d) => { if (d.type === 'progress') Semantic.progress(d); } });
+  const Semantic = (() => {
+    let vecs = null, loading = null, dl = null, touchTimer = 0, bfTimer = 0;
+    const indexing = new Set(), gone = new Set();
+    const load = () => (loading ??= DB.all('vectors').then((l) => { vecs = new Map(l.map((v) => [v.id, v])); }, () => { vecs = new Map(); }));
+    const hash = (s) => { let h = 0x811c9dc5; for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 0x01000193); } return (h >>> 0).toString(36); };
+
+    // チャンク：発言は AI メモの区間（なければ約600字）ごと、メモ・写真の説明・見出し・OCR・商談名とコンテキスト
+    const chunksOf = (sess, live) => {
+      const out = [];
+      const add = (kind, ref, text, max) => {
+        text = String(text || '').replace(/\s+/g, ' ').trim();
+        if (text) out.push({ id: `${sess.id}:${kind}:${ref}`, sessionId: sess.id, kind, ref: String(ref), text: text.slice(0, max) });
+      };
+      add('meta', 0, [sess.title, sess.context].filter(Boolean).join(' / '), 600);
+      const bounds = (sess.topics || []).map((t) => [t.from, t.to]);
+      let start = bounds.length ? bounds[bounds.length - 1][1] : 0, acc = 0;
+      for (let i = start; i < sess.segs.length; i++) {
+        if (sess.segs[i].kind) continue;
+        acc += sess.segs[i].text.length;
+        if (acc >= 600) { bounds.push([start, i + 1]); start = i + 1; acc = 0; }
+      }
+      // 録音中は、まだ育っている最後の区間は埋め込まない（文字列一致だけで扱う）
+      if (start < sess.segs.length && !live) bounds.push([start, sess.segs.length]);
+      let prev = '';
+      for (const [a, b] of bounds) {
+        const sp = sess.segs.slice(a, b).filter((s) => !s.kind && s.text);
+        if (!sp.length) continue;
+        add('speech', a, [prev.slice(-80), ...sp.map((s) => s.text)].filter(Boolean).join(' '), 600); // 前の区間の最後の発言を重ねる
+        prev = sp[sp.length - 1].text;
+      }
+      sess.segs.forEach((s, i) => {
+        if (s.kind === 'note') add('memo', i, s.text, 600);
+        if (s.kind !== 'image') return;
+        if (s.text) add('memo', `img-${s.img}`, `写真：${s.text}`, 600);
+        // OCR は写真1枚1チャンク。400字を超えたら行の切れ目で分ける
+        let buf = '', k = 0;
+        for (const line of String(s.ocr?.text || '').split('\n')) {
+          if (buf && buf.length + line.length + 1 > 400) { add('ocr', `${s.img}-${k++}`, buf, 400); buf = ''; }
+          buf = buf ? `${buf}\n${line}` : line;
+        }
+        if (buf.trim()) add('ocr', `${s.img}-${k}`, buf, 400);
+      });
+      (sess.topics || []).forEach((t, k) => add('topic', k, [t.title, ...(t.quotes || []).map((i) => sess.segs[i]?.text)].filter(Boolean).join(' '), 200));
+      return out;
+    };
+    const diff = (sess) => {
+      const want = chunksOf(sess, sess.id === S.id && running);
+      const ids = new Set(want.map((c) => c.id));
+      const stale = [...vecs.values()].filter((v) => v.sessionId === sess.id && !ids.has(v.id));
+      const todo = want.filter((c) => { c.hash = hash(c.text); const v = vecs.get(c.id); return !v || v.hash !== c.hash || v.model !== SEM_MODEL; });
+      return { stale, todo };
+    };
+    const needs = (sess) => { const d = diff(sess); return d.stale.length + d.todo.length > 0; };
+
+    const index = async (sess) => {
+      if (!P.semantic || !sess || indexing.has(sess.id)) return;
+      indexing.add(sess.id);
+      try {
+        await load();
+        const { stale, todo } = diff(sess);
+        for (const v of stale) { vecs.delete(v.id); await DB.del('vectors', v.id).catch(() => {}); }
+        for (let k = 0; k < todo.length; k += 8) {
+          if (!P.semantic || gone.has(sess.id)) return;
+          const batch = todo.slice(k, k + 8);
+          const { vectors } = await Jobs.add('embed', () => Workers.call('embed', { type: 'embed', kind: 'doc', texts: batch.map((c) => c.text) }));
+          dl = null;
+          if (gone.has(sess.id)) return;
+          for (let j = 0; j < batch.length; j++) {
+            const rec = { ...batch[j], vec: vectors[j], model: SEM_MODEL };
+            vecs.set(rec.id, rec);
+            await DB.put('vectors', rec).catch(() => {});
+          }
+        }
+      } catch {
+        dl = null;
+      } finally { indexing.delete(sess.id); updInfo(); }
+    };
+    // 開いている商談：変更が落ち着いてから作り直す
+    const touch = (sid = S.id) => {
+      if (!P.semantic) return;
+      if (sid !== S.id) { DB.get('sessions', sid).then(index, () => {}); return; }
+      clearTimeout(touchTimer); touchTimer = setTimeout(() => index(S), 20000);
+    };
+    // ほかの商談：録音していないときに、新しい順に1件ずつ
+    const backfill = (ms = 4000) => {
+      clearTimeout(bfTimer);
+      if (!P.semantic) return;
+      bfTimer = setTimeout(async () => {
+        if (running || AI.busy()) return backfill(30000);
+        await load();
+        const list = (await DB.all('sessions').catch(() => [])).map(normalize).sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
+        const next = list.map((s) => (s.id === S.id ? S : s)).find(needs);
+        if (next) { await index(next); backfill(1000); } else updInfo();
+      }, ms);
+    };
+    // クエリを埋め込み、商談ごとに一番近いチャンクの類似度を返す（しきい値未満は外す）
+    const search = async (q) => {
+      if (!P.semantic || !q) return null;
+      await load();
+      const { vectors: [qv] } = await Jobs.add('query', () => Workers.call('embed', { type: 'embed', kind: 'query', texts: [q] }), { prio: 5 });
+      const best = new Map();
+      for (const v of vecs.values()) {
+        if (v.model !== SEM_MODEL || !v.vec) continue;
+        let d = 0;
+        for (let i = 0; i < qv.length; i++) d += qv[i] * v.vec[i];
+        const b = best.get(v.sessionId);
+        if (!b || d > b.score) best.set(v.sessionId, { score: d, text: v.text });
+      }
+      return new Map([...best].filter(([, b]) => b.score >= SEM_MIN));
+    };
+    const pendingCount = async (list) => { if (!P.semantic) return 0; await load(); return list.filter(needs).length; };
+    const forget = (sid) => { gone.add(sid); if (vecs) for (const [id, v] of vecs) if (v.sessionId === sid) vecs.delete(id); };
+    const progress = (d) => { dl = d.total ? d : null; updInfo(); };
+    const updInfo = async () => {
+      const el = $('#semInfo');
+      if (!el) return;
+      if (!P.semantic) { el.textContent = 'オフ'; return; }
+      if (dl) { el.textContent = `モデルを取得中 ${mbOf(dl.loaded)} / ${mbOf(dl.total)}`; return; }
+      el.textContent = indexing.size ? '索引を作成中' : `ベクトル ${vecs ? vecs.size : '-'} 件`;
+    };
+    const unload = () => { clearTimeout(touchTimer); clearTimeout(bfTimer); Jobs.cancel((j) => j.label === 'embed' || j.label === 'query'); Workers.stop('embed'); updInfo(); };
+    return { index, touch, backfill, search, pendingCount, forget, progress, updInfo, unload };
+  })();
+
   // ---------- export（ファイルとして共有 / ダウンロード） ----------
   // LLM 向けの出力：データを XML タグで区切り、指示は末尾に置く
   const sessionStamp = (sess = S) => {
@@ -1439,13 +2141,21 @@ dialog::backdrop { background: oklch(0% 0 0 / .4); backdrop-filter: blur(2px); }
     ].join(' ');
     const list = (items) => items.map((s) => `- [${fmt(s.ts)}] ${xmlEsc(s.text)}`).join('\n');
     let instr = (S.instr ?? DEFAULT_INSTR).trim();
-    if (images.length && instr) instr = instr.replace('\n\n以下を', `\n${IMAGES_INSTR}\n\n以下を`);
+    const hasOcr = images.some((s) => s.ocr?.text?.trim());
+    if (images.length && instr) instr = instr.replace('\n\n以下を', `\n${IMAGES_INSTR}${hasOcr ? `\n${OCR_INSTR}` : ''}\n\n以下を`);
+    // 写真ごとに、OCR の全文を <ocr> で添える（補正の有無と平均スコアを属性に）
+    const imageLine = (s) => {
+      let line = `- [${fmt(s.ts)}] ${names.get(s.img)}${s.text ? ' 説明: ' + xmlEsc(s.text) : ''}`;
+      const t = s.ocr?.text?.trim();
+      if (t) line += `\n  <ocr warped="${s.warped ? 'yes' : 'no'}"${s.ocr.score != null ? ` score="${s.ocr.score}"` : ''}${s.ocr.edited ? ' edited="yes"' : ''}>\n${xmlEsc(t)}\n  </ocr>`;
+      return line;
+    };
     const text = [
       `<meeting_transcript ${attrs}>`,
       S.context.trim() && `<context>\n${xmlEsc(S.context.trim())}\n</context>`,
       notes.length && `<notes description="私が手入力したメモ。確度が高い">\n${list(notes)}\n</notes>`,
       important.length && `<important description="私が重要マークを付けた発言（音声認識）">\n${list(important)}\n</important>`,
-      images.length && `<images description="商談中に撮った写真。ファイルは同じ zip 内">\n${images.map((s) => `- [${fmt(s.ts)}] ${names.get(s.img)}${s.text ? ' 説明: ' + xmlEsc(s.text) : ''}`).join('\n')}\n</images>`,
+      images.length && `<images description="商談中に撮った写真。ファイルは同じ zip 内。ocr は写真から自動認識した文字（誤りあり）">\n${images.map(imageLine).join('\n')}\n</images>`,
       lines.length && `<transcript description="音声認識の生テキスト。誤認識あり・話者の区別なし。★は重要マーク、［写真］は撮影位置">\n${lines.join('\n')}\n</transcript>`,
       '</meeting_transcript>',
       instr && `<instructions>\n${instr}\n</instructions>`,
@@ -1754,7 +2464,7 @@ dialog::backdrop { background: oklch(0% 0 0 / .4); backdrop-filter: blur(2px); }
   // 全角/半角・大文字/小文字・カタカナ/ひらがなの違いをそろえ、スペース区切りは AND 検索
   const norm = (t) => String(t || '').normalize('NFKC').toLowerCase()
     .replace(/[\u30a1-\u30f6]/g, (c) => String.fromCharCode(c.charCodeAt(0) - 0x60)).replace(/\s+/g, ' ').trim();
-  const searchText = (s) => norm([titleOf(s), s.context, ...(s.topics || []).map((t) => t.title), ...s.segs.map((x) => x.text)].join(' \n '));
+  const searchText = (s) => norm([titleOf(s), s.context, ...(s.topics || []).map((t) => t.title), ...s.segs.map((x) => x.text), ...s.segs.map((x) => x.ocr?.text)].join(' \n '));
   // 読みの検索文字列（読みは norm 済みで保存している。未計算の要素は含めず、表記一致だけで扱う）
   const searchYomi = (s) => [s.titleYomi, s.contextYomi, ...(s.topics || []).map((t) => t.yomi), ...s.segs.map((x) => x.yomi)].filter(Boolean).join(' \n ');
   // キー入力のたびに作り直さないよう商談ごとにキャッシュする（開いている商談は毎回作る）
@@ -1784,7 +2494,7 @@ dialog::backdrop { background: oklch(0% 0 0 / .4); backdrop-filter: blur(2px); }
   };
   // 一覧に、最初の語が見つかった箇所の前後を出す（ヒット箇所にマーカー）
   const snippet = (s, term) => {
-    const fields = [titleOf(s), s.context, ...(s.topics || []).map((t) => t.title), ...s.segs.map((x) => x.text)];
+    const fields = [titleOf(s), s.context, ...(s.topics || []).map((t) => t.title), ...s.segs.map((x) => x.text), ...s.segs.map((x) => x.ocr?.text?.replace(/\s+/g, ' '))].filter(Boolean);
     for (const f of fields) {
       const n = norm(f), at = n.indexOf(term);
       if (at < 0 || n.length !== String(f).length) { if (at >= 0) return esc(clip(f, 40)); continue; }
@@ -1799,7 +2509,8 @@ dialog::backdrop { background: oklch(0% 0 0 / .4); backdrop-filter: blur(2px); }
     if (reload) sessions = (await DB.all('sessions').catch(() => [])).map(normalize);
     // 開いている商談はメモリ上の最新状態を使う
     sessions = sessions.filter((s) => s.id !== S.id).concat([S]).sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
-    const terms = await Promise.all(norm($('#drSearch').value).split(' ').filter(Boolean).map(async (t) => ({ surface: t, yomi: await Yomi.query(t) })));
+    const q = $('#drSearch').value.trim();
+    const terms = await Promise.all(norm(q).split(' ').filter(Boolean).map(async (t) => ({ surface: t, yomi: await Yomi.query(t) })));
     if (my !== drawerSeq) return; // 後から始まった描画を優先する
     const hits = new Map();
     const list = terms.length ? sessions.map((s) => {
@@ -1807,6 +2518,21 @@ dialog::backdrop { background: oklch(0% 0 0 / .4); backdrop-filter: blur(2px); }
       if (score) hits.set(s.id, h.hay.includes(terms[0].surface) ? snippet(s, terms[0].surface) : yomiSnippet(s, terms[0].yomi));
       return { s, score };
     }).filter((x) => x.score).sort((a, b) => b.score - a.score || (b.s.updatedAt || 0) - (a.s.updatedAt || 0)).map((x) => x.s) : sessions;
+    paintDrawer(list, hits);
+    if (!terms.length || !P.semantic) return;
+    // 意味検索：少し遅れて返ってくるので、文字列一致の順位と RRF（k=60）で合成して並べ直す
+    Semantic.search(q).then((sem) => {
+      if (!sem || my !== drawerSeq) return;
+      const rrf = new Map();
+      list.forEach((s, i) => rrf.set(s.id, 1 / (61 + i)));
+      [...sem].sort((a, b) => b[1].score - a[1].score).forEach(([id], i) => rrf.set(id, (rrf.get(id) || 0) + 1 / (61 + i)));
+      const byId = new Map(sessions.map((s) => [s.id, s]));
+      const merged = [...rrf].filter(([id]) => byId.has(id)).sort((a, b) => b[1] - a[1]).map(([id]) => byId.get(id));
+      for (const [id, b] of sem) if (!hits.has(id)) hits.set(id, '<span class="yl">関連</span>' + esc(clip(b.text, 40)));
+      paintDrawer(merged, hits);
+    }).catch(() => {});
+  }
+  function paintDrawer(list, hits) {
     drList.innerHTML = list.length ? list.map((s) => {
       const photos = s.segs.filter((x) => x.kind === 'image').length;
       const live = s.id === S.id && running;
@@ -1816,7 +2542,11 @@ dialog::backdrop { background: oklch(0% 0 0 / .4); backdrop-filter: blur(2px); }
         `<span class="m mono">${esc(fmtDate(s.updatedAt || s.createdAt))} · ${s.segs.length}件${photos ? ` · 写真${photos}` : ''}</span>` +
         `<button class="del" data-del="${s.id}" aria-label="この商談を削除">${TRASH_SVG}</button></li>`;
     }).join('') : '<li class="none">見つかりませんでした</li>';
-    $('#drFoot').textContent = `${sessions.length}件の商談がこの端末内に保存されています`;
+    const foot = `${sessions.length}件の商談がこの端末内に保存されています${Vault.on() ? '（暗号化済み）' : ''}`;
+    $('#drFoot').textContent = foot;
+    // 意味検索がオンで、まだ埋め込みを作っていない商談があれば知らせる（その商談は文字列一致だけで探す）
+    if (P.semantic) Semantic.pendingCount(sessions).then((n) => { if (n) $('#drFoot').textContent = `${foot}。意味検索の準備中：残り${n}件`; }).catch(() => {});
+    $('#drSearch').placeholder = P.semantic ? '商談名・発言・メモ・写真の文字で検索（関連も表示）' : '商談名・発言・メモ・写真の文字で検索（スペースで AND）';
     glide.style.opacity = 0;
   }
   // Sidebar Nav 風：指やポインタの位置にハイライトがすべるように付いていく
@@ -1842,7 +2572,7 @@ dialog::backdrop { background: oklch(0% 0 0 / .4); backdrop-filter: blur(2px); }
   const renderSession = () => {
     clearImgUrls(); banner(''); setInterim('');
     $('#recLabel').textContent = S.segs.length ? '録音再開' : '録音開始';
-    tick(); renderAll(); scrollBottom(); AI.render();
+    tick(); renderAll(); scrollBottom(); AI.render(); Photos.kick();
   };
   async function switchTo(id) {
     if (running) { if (!confirm('録音を止めて、この商談に切り替えますか？')) return; stop(); }
@@ -1863,6 +2593,7 @@ dialog::backdrop { background: oklch(0% 0 0 / .4); backdrop-filter: blur(2px); }
     if (!target || !confirm(`「${titleOf(target)}」を端末から削除しますか？（写真も削除されます。元に戻せません）`)) return;
     if (id === S.id && running) stop();
     for (const im of await DB.imagesOf(id).catch(() => [])) await DB.del('images', im.id).catch(() => {});
+    Semantic.forget(id);
     await DB.delWhere('vectors', 'sessionId', id).catch(() => {});
     await DB.del('sessions', id).catch(() => {});
     if (id === S.id) {
@@ -1922,6 +2653,7 @@ dialog::backdrop { background: oklch(0% 0 0 / .4); backdrop-filter: blur(2px); }
     $('#ocrPastToggle').checked = P.ocrPast;
     $('#semanticToggle').checked = P.semantic;
     modelSelect.value = P.model; updModelInfo();
+    updVaultInfo(); Photos.updInfo(); Semantic.updInfo();
     dlg.showModal();
   };
   $('#closeDlg').onclick = () => dlg.close();
@@ -1942,11 +2674,126 @@ dialog::backdrop { background: oklch(0% 0 0 / .4); backdrop-filter: blur(2px); }
     try { await caches.delete(YOMI_CACHE); } catch {}
     updYomiInfo(); toast('辞書を削除しました');
   };
-  $('#warpToggle').onchange = (e) => { P.warp = e.target.checked; savePrefs(); };
+  // モデルのダウンロードが発生する機能は、オンにするときに容量を見せて確認する
+  $('#warpToggle').onchange = (e) => {
+    if (e.target.checked && !confirm('写真の台形補正をオンにしますか？\nこれから撮る写真を自動で補正します。初回の補正時に OpenCV.js（約10MB）をダウンロードし、ブラウザに保存します。')) { e.target.checked = false; return; }
+    P.warp = e.target.checked; savePrefs();
+    if (!P.warp) { Jobs.cancel((j) => j.label.startsWith('warp:')); Workers.stop('cv'); }
+    renderAll(); Photos.updInfo();
+  };
   $('#dropOrigToggle').onchange = (e) => { P.dropOriginal = e.target.checked; savePrefs(); };
-  $('#ocrSelect').onchange = (e) => { P.ocr = e.target.value; savePrefs(); };
-  $('#ocrPastToggle').onchange = (e) => { P.ocrPast = e.target.checked; savePrefs(); };
-  $('#semanticToggle').onchange = (e) => { P.semantic = e.target.checked; savePrefs(); };
+  $('#ocrSelect').onchange = (e) => {
+    if (P.ocr === 'off' && e.target.value !== 'off' && !confirm('写真の OCR をオンにしますか？\n初回の OCR 時に、文字認識のモデルと実行環境（約70MB）をダウンロードし、ブラウザに保存します。写真は端末の外に出ません。')) { e.target.value = 'off'; return; }
+    P.ocr = e.target.value; savePrefs();
+    if (P.ocr === 'off') { Jobs.cancel((j) => j.label.startsWith('ocr:')); Workers.stop('ocr'); }
+    else { Photos.kick(); Photos.backfill(); }
+    renderAll(); Photos.updInfo();
+  };
+  $('#ocrPastToggle').onchange = (e) => { P.ocrPast = e.target.checked; savePrefs(); Photos.backfill(1000); };
+  $('#semanticToggle').onchange = (e) => {
+    if (e.target.checked && !confirm('意味検索をオンにしますか？\n埋め込みモデル（約40MB）をダウンロードし、ブラウザに保存します。その後、録音していないときに過去の商談の索引を少しずつ作ります。')) { e.target.checked = false; return; }
+    P.semantic = e.target.checked; savePrefs();
+    if (P.semantic) Semantic.backfill(300); else Semantic.unload();
+    Semantic.updInfo(); renderDrawer(false);
+  };
+  $('#clearPhotoModels').onclick = async () => {
+    if (!confirm('ダウンロード済みの補正・OCR モデルを削除しますか？（次回使うときに再ダウンロードします。読み取り済みの文字は残ります）')) return;
+    Workers.stop('cv'); Workers.stop('ocr');
+    for (const c of PHOTO_CACHES) { try { await caches.delete(c); } catch {} }
+    Photos.updInfo(); toast('モデルを削除しました');
+  };
+
+  // ---------- データの暗号化（パスキー） ----------
+  const updVaultInfo = () => {
+    const on = Vault.on();
+    $('#vaultInfo').textContent = on
+      ? 'オン：起動時と、5分以上ほかのアプリにいた後に Face ID で開きます（録音中はロックしません）。パスキーは同じ Apple ID の端末に同期されるため、同期先の端末でもロックを解除できます。書き出した zip は暗号化されません。'
+      : Vault.supported()
+        ? 'オフ：オンにするとパスキーを作り、商談名・発言・メモ・写真・OCR・検索用のベクトルをこの端末内で暗号化します。iPhone の Safari（iCloud キーチェーン）で使ってください。Mac から iPhone の QR を読むような端末をまたぐ認証は使わないでください。'
+        : 'このブラウザはパスキーに対応していないため、オンにできません。';
+    $('#vaultBtn').textContent = on ? 'オフにする' : pendingCred ? '続ける（Face ID）' : 'オンにする';
+    $('#vaultBtn').disabled = !on && !Vault.supported();
+    $('#vaultLock').hidden = !on;
+  };
+  // リカバリー鍵を見せ、「控えた」にチェックするまで先に進めない
+  const showRecovery = (text) => new Promise((resolve) => {
+    const d = $('#rkeyDlg');
+    $('#rkeyText').textContent = text; $('#rkeyOk').checked = false; $('#rkeyNext').disabled = true;
+    $('#rkeyOk').onchange = (e) => { $('#rkeyNext').disabled = !e.target.checked; };
+    $('#rkeyCopy').onclick = async () => { try { await navigator.clipboard.writeText(text); toast('コピーしました'); } catch { toast('コピーできませんでした。長押しで選択してください'); } };
+    let ok = false;
+    $('#rkeyNext').onclick = () => { ok = true; d.close(); };
+    $('#rkeyCancel').onclick = () => d.close();
+    d.onclose = () => { $('#rkeyText').textContent = ''; resolve(ok); };
+    d.showModal();
+  });
+  let pendingCred = null; // 作成済みで、まだ鍵を取り出していないパスキー
+  const vaultOn = async () => {
+    try {
+      if (!pendingCred) pendingCred = await Vault.createPasskey();
+      let st;
+      try { st = await Vault.setup(pendingCred); }
+      catch (e) {
+        // 作成の直後に続けて Face ID を求めると、ブラウザによっては操作が必要として断られる。もう一度押してもらう
+        if (e.name === 'NotAllowedError') { updVaultInfo(); toast('もう一度ボタンを押して、パスキーで鍵を取り出してください'); return; }
+        throw e;
+      }
+      pendingCred = null;
+      if (!(await showRecovery(st.recovery))) { updVaultInfo(); toast('暗号化をやめました'); return; }
+      await flush();
+      await st.commit((d, t) => { $('#vaultInfo').textContent = `暗号化しています ${d} / ${t}`; });
+      updVaultInfo(); renderDrawer(); toast('商談データを暗号化しました');
+    } catch (e) {
+      pendingCred = null; updVaultInfo();
+      toast(e.name === 'NotAllowedError' ? 'パスキーの操作がキャンセルされました' : (e.message || String(e)));
+    }
+  };
+  const vaultOff = async () => {
+    if (!confirm('暗号化をオフにして、商談データを暗号化しない形で保存し直しますか？（確認のため Face ID を求めます）')) return;
+    try {
+      await Vault.unlock();
+      await flush();
+      await Vault.disable((d, t) => { $('#vaultInfo').textContent = `復号しています ${d} / ${t}`; });
+      updVaultInfo(); renderDrawer(); toast('暗号化をオフにしました');
+    } catch (e) { updVaultInfo(); toast(e.name === 'NotAllowedError' ? 'キャンセルされました' : (e.message || String(e))); }
+  };
+  $('#vaultBtn').onclick = () => (Vault.on() ? vaultOff() : vaultOn());
+  // ロックはメモリ上の復号済みデータごと捨てるため、保存してから読み込み直す
+  const lockNow = async () => {
+    if (running) return toast('録音中はロックしません');
+    await flush();
+    Vault.forget(); location.reload();
+  };
+  $('#vaultLock').onclick = lockNow;
+  const LOCK_MS = 5 * 60 * 1000;
+  let hiddenAt = 0;
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'hidden') { hiddenAt = Date.now(); return; }
+    if (Vault.on() && !Vault.locked() && !running && hiddenAt && Date.now() - hiddenAt >= LOCK_MS) lockNow();
+  });
+  // ロック画面：Face ID（パスキー）か、リカバリー鍵で開く
+  const unlockScreen = () => new Promise((resolve) => {
+    const scr = $('#lockScreen');
+    scr.hidden = false;
+    const err = (m) => { $('#lockErr').textContent = m || ''; };
+    const done = () => { scr.hidden = true; err(''); resolve(); };
+    $('#unlockBtn').onclick = async () => {
+      err('');
+      try { await Vault.unlock(); done(); }
+      catch (e) { err(e.name === 'NotAllowedError' ? 'キャンセルされました。もう一度お試しください' : (e.message || String(e))); }
+    };
+    $('#recoverToggle').onclick = () => { $('#recoverBox').hidden = !$('#recoverBox').hidden; if (!$('#recoverBox').hidden) $('#recoverInput').focus(); };
+    $('#recoverGo').onclick = async () => {
+      err('');
+      try {
+        const r = await Vault.recover($('#recoverInput').value, $('#rewrapChk').checked ? Vault.createPasskey : null);
+        $('#recoverInput').value = '';
+        done();
+        if (r !== true) toast(`リカバリー鍵で開きました。新しいパスキーは登録できませんでした（${r?.message || r}）`);
+        else toast($('#rewrapChk').checked ? '新しいパスキーで開けるようにしました' : 'リカバリー鍵で開きました');
+      } catch (e) { err(e.message || String(e)); }
+    };
+  });
   modelSelect.onchange = () => { P.model = modelSelect.value; savePrefs(); updModelInfo(); AI.switchModel(); };
   $('#clearModel').onclick = async () => {
     if (!confirm('ダウンロード済みのモデルを削除しますか？（次回使うときに再ダウンロードします）')) return;
@@ -1967,9 +2814,6 @@ dialog::backdrop { background: oklch(0% 0 0 / .4); backdrop-filter: blur(2px); }
     download(file);
   };
 
-  // 実機での確認用：URL の末尾に #debug を付けて開くと、コンソールから基盤を触れる
-  if (location.hash === '#debug') window.LS = { DB, Jobs, Workers, LOW_MEM };
-
   // ---------- init ----------
   (async () => {
     // ホーム画面から独立したアプリ画面で開かれた場合は、Safari で開き直すよう案内する
@@ -1978,6 +2822,11 @@ dialog::backdrop { background: oklch(0% 0 0 / .4); backdrop-filter: blur(2px); }
       $('#openSafari').href = 'x-safari-' + location.href.split('#')[0];
     }
     if (!SR) banner('このブラウザは音声認識に対応していません。iPhone の Safari で開いてください。');
+    // 暗号化がオンなら、ロックを解除するまで商談データを読まない
+    try { await Vault.load(); } catch {}
+    if (Vault.on()) await unlockScreen();
+    // ダウンロードしたモデルや商談データを、ブラウザに勝手に消されにくくする
+    navigator.storage?.persist?.().catch(() => {});
     let list = [];
     try { list = (await DB.all('sessions')).map(normalize); } catch { banner('この端末では保存領域（IndexedDB）を使えません。プライベートブラウズでないか確認してください。'); }
     // 旧バージョン（localStorage に1商談だけ保存）からの引き継ぎ
@@ -1995,6 +2844,7 @@ dialog::backdrop { background: oklch(0% 0 0 / .4); backdrop-filter: blur(2px); }
     P.current = S.id; savePrefs();
     if (S.segs.length) $('#recLabel').textContent = '録音再開';
     tick(); renderAll(); updWL(); AI.apply(); Yomi.apply(); renderDrawer();
+    Photos.kick(); Photos.backfill(); Semantic.backfill();
   })();
 })();
 </script>
