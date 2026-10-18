@@ -229,6 +229,13 @@ mark.num   { background: linear-gradient(transparent 50%, var(--hl-num) 50%); fo
 .topics li .time { font-size: 11px; color: var(--ink-3); padding-top: 3px; }
 .topics li.empty-row { font-size: 12px; color: var(--ink-3); cursor: default; }
 .seg.flash { animation: flash 1.4s ease-out; }
+/* 検索で当たった箇所 */
+#findBar { display: flex; align-items: center; gap: 6px; padding: 6px 6px 6px 14px; border-bottom: 1px dashed var(--line-strong); background: var(--accent-tint); color: var(--ink-2); font-size: 13px; }
+#findBar .q { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--ink); font-weight: 500; }
+#findBar .n { font-size: 12px; flex: none; }
+#findBar .icon-btn { width: 32px; height: 32px; }
+mark.find { background: var(--hl-req); }
+.seg.find-cur { box-shadow: inset 3px 0 0 var(--accent); background: var(--accent-tint); }
 @keyframes flash { 0%, 40% { background: var(--accent-tint); } }
 
 /* ---------- dock (prompt bar) ---------- */
@@ -445,6 +452,16 @@ dialog::backdrop { background: oklch(0% 0 0 / .4); backdrop-filter: blur(2px); }
   <span><i style="background:var(--hl-num)"></i>数字・期限</span>
 </div>
 
+<!-- 検索で当たった箇所の移動（履歴の検索結果から開いたとき） -->
+<div id="findBar" hidden>
+  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="6.5"/><path d="M16 16l4.5 4.5"/></svg>
+  <span class="q" id="findQ"></span>
+  <span class="n mono" id="findN"></span>
+  <button class="icon-btn" id="findPrev" aria-label="前の一致"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 15l6-6 6 6"/></svg></button>
+  <button class="icon-btn" id="findNext" aria-label="次の一致"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg></button>
+  <button class="icon-btn" id="findClose" aria-label="検索を閉じる"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+</div>
+
 <main id="log">
   <div class="session-title">
     <button id="titleBtn" aria-label="商談名を編集"><span id="sessionTitle"></span><span class="tag2" id="titleAiTag" hidden>AI</span>
@@ -611,15 +628,6 @@ dialog::backdrop { background: oklch(0% 0 0 / .4); backdrop-filter: blur(2px); }
       </button>
     </div>
 
-    <div class="section-title">意味検索（実験）</div>
-    <div class="menu">
-      <label class="row">
-        <span class="grow">言い換えでも検索する<small>履歴の検索で、言葉が違っても意味が近い発言・メモ・写真の文字を見つけます（「費用」で「コスト」の発言など）。端末内の埋め込みモデル（ruri-v3-30m、初回のみ約40MB）を使い、表記一致と合わせて並べます。意味だけで当たった商談には「関連」が付きます。</small></span>
-        <span class="switch"><input type="checkbox" id="semanticToggle"><span></span></span>
-      </label>
-      <div class="row"><span class="grow">状態<small id="semInfo"></small></span></div>
-    </div>
-
     <div class="section-title">データ</div>
     <div class="menu">
       <label class="row">
@@ -751,15 +759,15 @@ dialog::backdrop { background: oklch(0% 0 0 / .4); backdrop-filter: blur(2px); }
   const DB = (() => {
     let dbp;
     const open = () => (dbp ??= new Promise((resolve, reject) => {
-      const r = indexedDB.open('livescribe', 2);
+      const r = indexedDB.open('livescribe', 3);
       r.onupgradeneeded = (e) => {
         const db = r.result;
         if (e.oldVersion < 1) {
           db.createObjectStore('sessions', { keyPath: 'id' });
           db.createObjectStore('images', { keyPath: 'id' }).createIndex('session', 'session');
         }
-        // v2: 意味検索のベクトル（商談オブジェクトに入れると 400ms ごとの保存が重くなるので分ける）
-        if (e.oldVersion < 2) db.createObjectStore('vectors', { keyPath: 'id' }).createIndex('sessionId', 'sessionId');
+        // v3: 廃止した意味検索のベクトルと暗号化の鍵のストアを消す（v2 で作っていた）
+        for (const name of ['vectors', 'keys']) if (db.objectStoreNames.contains(name)) db.deleteObjectStore(name);
       };
       // 旧バージョンのタブが開いたままだと、バージョンアップが終わるまで待たされる
       r.onblocked = () => banner('別のタブで Live Scribe が開いています。そのタブを閉じてから再読み込みしてください。');
@@ -786,13 +794,6 @@ dialog::backdrop { background: oklch(0% 0 0 / .4); backdrop-filter: blur(2px); }
       all: (store) => tx(store, 'readonly', (s) => s.getAll()),
       del: (store, k) => tx(store, 'readwrite', (s) => s.delete(k)),
       imagesOf: (sid) => tx('images', 'readonly', (s) => s.index('session').getAll(sid)),
-      // インデックスの値が一致するレコードをまとめて消す（商談の削除時に vectors を消す）
-      delWhere: (store, index, key) => tx(store, 'readwrite', (s) => {
-        s.index(index).openKeyCursor(IDBKeyRange.only(key)).onsuccess = (e) => {
-          const c = e.target.result;
-          if (c) { s.delete(c.primaryKey); c.continue(); }
-        };
-      }),
     };
   })();
 
@@ -835,7 +836,8 @@ dialog::backdrop { background: oklch(0% 0 0 / .4); backdrop-filter: blur(2px); }
   try { P = JSON.parse(localStorage.getItem(PKEY)) || {}; } catch { P = {}; }
   P.hl ??= true; P.ai ??= false; P.model ??= 'lfm2-350m'; P.meter ??= true; P.zip ??= true; P.yomi ??= false;
   // 写真と検索の拡張（モデルのダウンロードが発生するので、すべて初期値はオフ）
-  P.warp ??= false; P.semantic ??= false; P.dropOriginal ??= false;
+  P.warp ??= false; P.dropOriginal ??= false;
+  delete P.semantic; // 意味検索は廃止（メモリを使うため）
   delete P.ocr; delete P.ocrPast; // 端末内 OCR（PaddleOCR）は廃止。写真の文字は iPhone のテキスト認識で取り込む
   if (P.v !== 2) { P.model = 'lfm2-350m'; P.v = 2; delete P.loaded; }
   const savePrefs = () => { try { localStorage.setItem(PKEY, JSON.stringify(P)); } catch {} };
@@ -874,7 +876,7 @@ dialog::backdrop { background: oklch(0% 0 0 / .4); backdrop-filter: blur(2px); }
   // 書き込みはまとめて行う（発言のたびに IndexedDB へ書かない）
   let saveTimer = null;
   const flush = () => { clearTimeout(saveTimer); saveTimer = null; S.updatedAt = Date.now(); return DB.put('sessions', S).catch(() => {}); };
-  const save = () => { clearTimeout(saveTimer); saveTimer = setTimeout(flush, 400); Yomi.touch(); Semantic.touch(); };
+  const save = () => { clearTimeout(saveTimer); saveTimer = setTimeout(flush, 400); Yomi.touch(); };
   document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden' && saveTimer) flush(); });
   window.addEventListener('pagehide', () => { if (saveTimer) flush(); });
 
@@ -938,11 +940,13 @@ dialog::backdrop { background: oklch(0% 0 0 / .4); backdrop-filter: blur(2px); }
   $('#toBottom').onclick = scrollBottom;
 
   const segBody = (seg) => {
-    if (seg.kind === 'note') return `<span class="tag">${seg.src === 'scan' ? 'スキャン' : 'メモ'}</span>` + esc(seg.text);
+    const found = Find.markText(seg.text); // 検索中は、当たった語に色を付ける（蛍光ペンより優先）
+    if (seg.kind === 'note') return `<span class="tag">${seg.src === 'scan' ? 'スキャン' : 'メモ'}</span>` + (found ?? esc(seg.text));
     if (seg.kind === 'image') {
       const b = Photos.badge(seg);
       return `<span class="ph"><img class="thumb" data-img="${seg.img}" alt="写真">${b ? `<span class="badge ${b[1]}">${esc(b[0])}</span>` : ''}</span>` + (seg.text ? `<span class="cap">${esc(seg.text)}</span>` : '');
     }
+    if (found) return found;
     return P.hl ? hl(seg.text) : esc(seg.text);
   };
   const segHTML = (seg, i) =>
@@ -1411,8 +1415,8 @@ dialog::backdrop { background: oklch(0% 0 0 / .4); backdrop-filter: blur(2px); }
     renderDrawer();
     // AI メモがオンなら、録音を止めたタイミングで商談名を自動で付ける（手で付けた名前は上書きしない）
     if (P.ai && (!S.title || S.titleAuto)) AI.requestTitle(S);
-    // 録音停止後にまとめて：写真の補正、意味検索の索引
-    Photos.kick(); Semantic.index(S); Semantic.backfill(30000);
+    // 録音停止後にまとめて：写真の補正
+    Photos.kick();
   }
   $('#recBtn').onclick = () => (running ? stop() : start());
 
@@ -1745,10 +1749,9 @@ dialog::backdrop { background: oklch(0% 0 0 / .4); backdrop-filter: blur(2px); }
   const Jobs = (() => {
     const queue = [];
     let current = null, seq = 0, waitTimer = 0;
-    // 検索語の埋め込み以外は重い処理（モデルを載せる）
-    const heavy = (j) => j.label !== 'query';
-    // 低メモリの端末で AI メモを使って録音している間は、重い処理を録音停止まで待たせる（LLM と同時に載せない）
-    const held = (j) => LOW_MEM && heavy(j) && running && P.ai;
+    // キューに入るのは、どれもモデルを載せる重い処理。低メモリの端末で AI メモを使って録音している間は、
+    // 録音停止まで待たせる（LLM と同時に載せない）
+    const held = () => LOW_MEM && running && P.ai;
     const pump = () => {
       clearTimeout(waitTimer);
       if (current || !queue.length) return;
@@ -1758,7 +1761,7 @@ dialog::backdrop { background: oklch(0% 0 0 / .4); backdrop-filter: blur(2px); }
       if (k < 0) { waitTimer = setTimeout(pump, 2000); return; }
       const j = current = queue.splice(k, 1)[0];
       // 低メモリの端末では、重い処理の前に LLM と読み検索の辞書を外す（LLM は次に必要になったら読み込み直す）
-      if (LOW_MEM && heavy(j)) { AI.suspend(); if (Yomi.loaded()) Yomi.unload(); }
+      if (LOW_MEM) { AI.suspend(); if (Yomi.loaded()) Yomi.unload(); }
       Promise.resolve().then(j.fn).then(j.resolve, j.reject).finally(() => {
         current = null;
         AI.maybeRun();
@@ -1877,134 +1880,6 @@ dialog::backdrop { background: oklch(0% 0 0 / .4); backdrop-filter: blur(2px); }
     return { kick, badge, updInfo, manualWarp, unwarp, edit };
   })();
 
-  // ---------- 意味検索（埋め込みベクトルと文字列一致を RRF で合成） ----------
-  const SEM_MODEL = 'ruri-v3-30m-q8';
-  // ruri-v3 は無関係な文どうしでも 0.75 前後になるため、設計時の 0.5 ではなく 0.8 を下限にする
-  const SEM_MIN = 0.8;
-  Workers.define('embed', { url: 'embed-worker.js', module: true, label: '意味検索（ruri-v3）', mb: 40, onEvent: (d) => { if (d.type === 'progress') Semantic.progress(d); } });
-  const Semantic = (() => {
-    let vecs = null, loading = null, dl = null, touchTimer = 0, bfTimer = 0;
-    const indexing = new Set(), gone = new Set();
-    const load = () => (loading ??= DB.all('vectors').then((l) => { vecs = new Map(l.map((v) => [v.id, v])); }, () => { vecs = new Map(); }));
-    const hash = (s) => { let h = 0x811c9dc5; for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 0x01000193); } return (h >>> 0).toString(36); };
-
-    // チャンク：発言は AI メモの区間（なければ約600字）ごと、メモ・写真の説明・見出し・写真の文字・商談名とコンテキスト
-    const chunksOf = (sess, live) => {
-      const out = [];
-      const add = (kind, ref, text, max) => {
-        text = String(text || '').replace(/\s+/g, ' ').trim();
-        if (text) out.push({ id: `${sess.id}:${kind}:${ref}`, sessionId: sess.id, kind, ref: String(ref), text: text.slice(0, max) });
-      };
-      add('meta', 0, [sess.title, sess.context].filter(Boolean).join(' / '), 600);
-      const bounds = (sess.topics || []).map((t) => [t.from, t.to]);
-      let start = bounds.length ? bounds[bounds.length - 1][1] : 0, acc = 0;
-      for (let i = start; i < sess.segs.length; i++) {
-        if (sess.segs[i].kind) continue;
-        acc += sess.segs[i].text.length;
-        if (acc >= 600) { bounds.push([start, i + 1]); start = i + 1; acc = 0; }
-      }
-      // 録音中は、まだ育っている最後の区間は埋め込まない（文字列一致だけで扱う）
-      if (start < sess.segs.length && !live) bounds.push([start, sess.segs.length]);
-      let prev = '';
-      for (const [a, b] of bounds) {
-        const sp = sess.segs.slice(a, b).filter((s) => !s.kind && s.text);
-        if (!sp.length) continue;
-        add('speech', a, [prev.slice(-80), ...sp.map((s) => s.text)].filter(Boolean).join(' '), 600); // 前の区間の最後の発言を重ねる
-        prev = sp[sp.length - 1].text;
-      }
-      sess.segs.forEach((s, i) => {
-        if (s.kind === 'note') add('memo', i, s.text, 600);
-        if (s.kind !== 'image') return;
-        if (s.text) add('memo', `img-${s.img}`, `写真：${s.text}`, 600);
-        // 写真の文字は写真1枚1チャンク。400字を超えたら行の切れ目で分ける
-        let buf = '', k = 0;
-        for (const line of String(s.ocr?.text || '').split('\n')) {
-          if (buf && buf.length + line.length + 1 > 400) { add('ocr', `${s.img}-${k++}`, buf, 400); buf = ''; }
-          buf = buf ? `${buf}\n${line}` : line;
-        }
-        if (buf.trim()) add('ocr', `${s.img}-${k}`, buf, 400);
-      });
-      (sess.topics || []).forEach((t, k) => add('topic', k, [t.title, ...(t.quotes || []).map((i) => sess.segs[i]?.text)].filter(Boolean).join(' '), 200));
-      return out;
-    };
-    const diff = (sess) => {
-      const want = chunksOf(sess, sess.id === S.id && running);
-      const ids = new Set(want.map((c) => c.id));
-      const stale = [...vecs.values()].filter((v) => v.sessionId === sess.id && !ids.has(v.id));
-      const todo = want.filter((c) => { c.hash = hash(c.text); const v = vecs.get(c.id); return !v || v.hash !== c.hash || v.model !== SEM_MODEL; });
-      return { stale, todo };
-    };
-    const needs = (sess) => { const d = diff(sess); return d.stale.length + d.todo.length > 0; };
-
-    const index = async (sess) => {
-      if (!P.semantic || !sess || indexing.has(sess.id)) return;
-      indexing.add(sess.id);
-      try {
-        await load();
-        const { stale, todo } = diff(sess);
-        for (const v of stale) { vecs.delete(v.id); await DB.del('vectors', v.id).catch(() => {}); }
-        for (let k = 0; k < todo.length; k += 8) {
-          if (!P.semantic || gone.has(sess.id)) return;
-          const batch = todo.slice(k, k + 8);
-          const { vectors } = await Jobs.add('embed', () => Workers.call('embed', { type: 'embed', kind: 'doc', texts: batch.map((c) => c.text) }));
-          dl = null;
-          if (gone.has(sess.id)) return;
-          for (let j = 0; j < batch.length; j++) {
-            const rec = { ...batch[j], vec: vectors[j], model: SEM_MODEL };
-            vecs.set(rec.id, rec);
-            await DB.put('vectors', rec).catch(() => {});
-          }
-        }
-      } catch {
-        dl = null;
-      } finally { indexing.delete(sess.id); updInfo(); }
-    };
-    // 開いている商談：変更が落ち着いてから作り直す
-    const touch = (sid = S.id) => {
-      if (!P.semantic) return;
-      if (sid !== S.id) { DB.get('sessions', sid).then(index, () => {}); return; }
-      clearTimeout(touchTimer); touchTimer = setTimeout(() => index(S), 20000);
-    };
-    // ほかの商談：録音していないときに、新しい順に1件ずつ
-    const backfill = (ms = 4000) => {
-      clearTimeout(bfTimer);
-      if (!P.semantic) return;
-      bfTimer = setTimeout(async () => {
-        if (running || AI.busy()) return backfill(30000);
-        await load();
-        const list = (await DB.all('sessions').catch(() => [])).map(normalize).sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
-        const next = list.map((s) => (s.id === S.id ? S : s)).find(needs);
-        if (next) { await index(next); backfill(1000); } else updInfo();
-      }, ms);
-    };
-    // クエリを埋め込み、商談ごとに一番近いチャンクの類似度を返す（しきい値未満は外す）
-    const search = async (q) => {
-      if (!P.semantic || !q) return null;
-      await load();
-      const { vectors: [qv] } = await Jobs.add('query', () => Workers.call('embed', { type: 'embed', kind: 'query', texts: [q] }), { prio: 5 });
-      const best = new Map();
-      for (const v of vecs.values()) {
-        if (v.model !== SEM_MODEL || !v.vec) continue;
-        let d = 0;
-        for (let i = 0; i < qv.length; i++) d += qv[i] * v.vec[i];
-        const b = best.get(v.sessionId);
-        if (!b || d > b.score) best.set(v.sessionId, { score: d, text: v.text });
-      }
-      return new Map([...best].filter(([, b]) => b.score >= SEM_MIN));
-    };
-    const pendingCount = async (list) => { if (!P.semantic) return 0; await load(); return list.filter(needs).length; };
-    const forget = (sid) => { gone.add(sid); if (vecs) for (const [id, v] of vecs) if (v.sessionId === sid) vecs.delete(id); };
-    const progress = (d) => { dl = d.total ? d : null; updInfo(); };
-    const updInfo = async () => {
-      const el = $('#semInfo');
-      if (!el) return;
-      if (!P.semantic) { el.textContent = 'オフ'; return; }
-      if (dl) { el.textContent = `モデルを取得中 ${mbOf(dl.loaded)} / ${mbOf(dl.total)}`; return; }
-      el.textContent = indexing.size ? '索引を作成中' : `ベクトル ${vecs ? vecs.size : '-'} 件`;
-    };
-    const unload = () => { clearTimeout(touchTimer); clearTimeout(bfTimer); Jobs.cancel((j) => j.label === 'embed' || j.label === 'query'); Workers.stop('embed'); updInfo(); };
-    return { index, touch, backfill, search, pendingCount, forget, progress, updInfo, unload };
-  })();
 
   // ---------- export（ファイルとして共有 / ダウンロード） ----------
   // LLM 向けの出力：データを XML タグで区切り、指示は末尾に置く
@@ -2345,6 +2220,69 @@ dialog::backdrop { background: oklch(0% 0 0 / .4); backdrop-filter: blur(2px); }
       : size ? `ダウンロード済み · ${mbs}` : '未ダウンロード（約18MB・検索欄を開いたときに取得）';
   };
 
+  // ---------- 検索で当たった箇所へ移動（履歴の検索結果から開いたとき） ----------
+  // 検索語のどれかを含む発言・メモ・写真の文字を、上から順に移動できるようにする。当たった語には色を付ける
+  const Find = (() => {
+    let terms = null, hits = [], pos = 0;
+    const segMatch = (x) => {
+      const hay = norm([x.text, x.ocr?.text].filter(Boolean).join(' '));
+      return terms.some((t) => hay.includes(t.surface) || (t.yomi && x.yomi?.includes(t.yomi)));
+    };
+    // 表記で当たった語を <mark class="find"> で囲む。正規化で長さが変わる文（全角記号の展開など）は位置がずれるので囲まない
+    const markText = (text) => {
+      if (!terms || !text) return null;
+      const n = norm(text);
+      if (n.length !== text.length) return null;
+      const ranges = [];
+      for (const { surface } of terms) {
+        for (let at = n.indexOf(surface); at >= 0; at = n.indexOf(surface, at + surface.length)) ranges.push([at, at + surface.length]);
+      }
+      if (!ranges.length) return null;
+      ranges.sort((a, b) => a[0] - b[0]);
+      let html = '', last = 0;
+      for (const [a, b] of ranges) {
+        if (a < last) continue; // 重なりは先の方を優先
+        html += esc(text.slice(last, a)) + `<mark class="find">${esc(text.slice(a, b))}</mark>`;
+        last = b;
+      }
+      return html + esc(text.slice(last));
+    };
+    const bar = () => {
+      $('#findBar').hidden = !terms;
+      if (!terms) return;
+      $('#findQ').textContent = terms.map((t) => `「${t.surface}」`).join(' ');
+      $('#findN').textContent = `${pos + 1} / ${hits.length}`;
+    };
+    const go = (k) => {
+      if (!hits.length) return;
+      pos = (k + hits.length) % hits.length;
+      segsEl.querySelectorAll('.seg.find-cur').forEach((e) => e.classList.remove('find-cur'));
+      const el = segsEl.querySelector(`.seg[data-i="${hits[pos]}"]`);
+      if (el) {
+        el.classList.add('find-cur');
+        el.scrollIntoView({ block: 'center', behavior: 'smooth' });
+        el.classList.remove('flash'); void el.offsetWidth; el.classList.add('flash');
+      }
+      bar();
+    };
+    const start = (t) => {
+      terms = t;
+      hits = S.segs.map((x, i) => (segMatch(x) ? i : -1)).filter((i) => i >= 0);
+      if (!hits.length) {
+        terms = null; bar();
+        toast('発言・メモの中にはありませんでした（商談名・コンテキスト・話題の見出しで一致）');
+        return;
+      }
+      pos = 0; renderAll(); go(0);
+    };
+    const reset = () => { terms = null; hits = []; bar(); };
+    const close = () => { reset(); renderAll(); };
+    $('#findPrev').onclick = () => go(pos - 1);
+    $('#findNext').onclick = () => go(pos + 1);
+    $('#findClose').onclick = close;
+    return { start, reset, close, markText: (text) => (terms ? markText(text) : null) };
+  })();
+
   // ---------- drawer（商談の履歴） ----------
   let sessions = [];
   const drawer = $('#drawer'), scrim = $('#scrim'), drList = $('#drList'), glide = $('#glide');
@@ -2407,7 +2345,7 @@ dialog::backdrop { background: oklch(0% 0 0 / .4); backdrop-filter: blur(2px); }
     }
     return esc(clip(subtitleOf(s), 40));
   };
-  let drawerSeq = 0;
+  let drawerSeq = 0, findTerms = null;
   async function renderDrawer(reload = true) {
     const my = ++drawerSeq;
     if (reload) sessions = (await DB.all('sessions').catch(() => [])).map(normalize);
@@ -2422,19 +2360,8 @@ dialog::backdrop { background: oklch(0% 0 0 / .4); backdrop-filter: blur(2px); }
       if (score) hits.set(s.id, h.hay.includes(terms[0].surface) ? snippet(s, terms[0].surface) : yomiSnippet(s, terms[0].yomi));
       return { s, score };
     }).filter((x) => x.score).sort((a, b) => b.score - a.score || (b.s.updatedAt || 0) - (a.s.updatedAt || 0)).map((x) => x.s) : sessions;
+    findTerms = terms.length ? terms : null;
     paintDrawer(list, hits);
-    if (!terms.length || !P.semantic) return;
-    // 意味検索：少し遅れて返ってくるので、文字列一致の順位と RRF（k=60）で合成して並べ直す
-    Semantic.search(q).then((sem) => {
-      if (!sem || my !== drawerSeq) return;
-      const rrf = new Map();
-      list.forEach((s, i) => rrf.set(s.id, 1 / (61 + i)));
-      [...sem].sort((a, b) => b[1].score - a[1].score).forEach(([id], i) => rrf.set(id, (rrf.get(id) || 0) + 1 / (61 + i)));
-      const byId = new Map(sessions.map((s) => [s.id, s]));
-      const merged = [...rrf].filter(([id]) => byId.has(id)).sort((a, b) => b[1] - a[1]).map(([id]) => byId.get(id));
-      for (const [id, b] of sem) if (!hits.has(id)) hits.set(id, '<span class="yl">関連</span>' + esc(clip(b.text, 40)));
-      paintDrawer(merged, hits);
-    }).catch(() => {});
   }
   function paintDrawer(list, hits) {
     drList.innerHTML = list.length ? list.map((s) => {
@@ -2446,11 +2373,9 @@ dialog::backdrop { background: oklch(0% 0 0 / .4); backdrop-filter: blur(2px); }
         `<span class="m mono">${esc(fmtDate(s.updatedAt || s.createdAt))} · ${s.segs.length}件${photos ? ` · 写真${photos}` : ''}</span>` +
         `<button class="del" data-del="${s.id}" aria-label="この商談を削除">${TRASH_SVG}</button></li>`;
     }).join('') : '<li class="none">見つかりませんでした</li>';
-    const foot = `${sessions.length}件の商談がこの端末内に保存されています`;
-    $('#drFoot').textContent = foot;
-    // 意味検索がオンで、まだ埋め込みを作っていない商談があれば知らせる（その商談は文字列一致だけで探す）
-    if (P.semantic) Semantic.pendingCount(sessions).then((n) => { if (n) $('#drFoot').textContent = `${foot}。意味検索の準備中：残り${n}件`; }).catch(() => {});
-    $('#drSearch').placeholder = P.semantic ? '商談名・発言・メモ・写真の文字で検索（関連も表示）' : '商談名・発言・メモ・写真の文字で検索（スペースで AND）';
+    $('#drFoot').textContent = findTerms && list.length
+      ? '検索結果をタップすると、当たった箇所に移動します'
+      : `${sessions.length}件の商談がこの端末内に保存されています`;
     glide.style.opacity = 0;
   }
   // Sidebar Nav 風：指やポインタの位置にハイライトがすべるように付いていく
@@ -2463,8 +2388,9 @@ dialog::backdrop { background: oklch(0% 0 0 / .4); backdrop-filter: blur(2px); }
     const del = e.target.closest('[data-del]');
     if (del) return deleteSession(del.dataset.del);
     const li = e.target.closest('li[data-id]'); if (!li) return;
-    if (li.dataset.id === S.id) return closeDrawer();
-    await switchTo(li.dataset.id);
+    // 検索中なら、開いた商談で当たった箇所へ移動する
+    if (li.dataset.id === S.id) { closeDrawer(); if (findTerms) Find.start(findTerms); return; }
+    await switchTo(li.dataset.id, findTerms);
   });
 
   // 状態は同期で切り替え、描画だけを View Transition に渡す（コールバックは非同期に実行されるため）
@@ -2473,17 +2399,22 @@ dialog::backdrop { background: oklch(0% 0 0 / .4); backdrop-filter: blur(2px); }
     P.current = S.id; savePrefs();
     vt(renderSession);
   };
+  let pendingFind = null; // 商談を開いた後に移動する検索語
   const renderSession = () => {
     clearImgUrls(); banner(''); setInterim('');
     $('#recLabel').textContent = S.segs.length ? '録音再開' : '録音開始';
+    Find.reset();
     tick(); renderAll(); scrollBottom(); AI.render(); Photos.kick();
+    if (pendingFind) { Find.start(pendingFind); pendingFind = null; }
   };
-  async function switchTo(id) {
+  async function switchTo(id, find = null) {
     if (running) { if (!confirm('録音を止めて、この商談に切り替えますか？')) return; stop(); }
     await flush();
     const sess = await DB.get('sessions', id);
     if (!sess) return toast('商談が見つかりませんでした');
-    loadInto(sess); closeDrawer(); toast(`「${titleOf(S)}」を開きました`);
+    pendingFind = find;
+    loadInto(sess); closeDrawer();
+    if (!find) toast(`「${titleOf(S)}」を開きました`);
   }
   $('#newSessionBtn').onclick = async () => {
     if (running) { if (!confirm('録音を止めて、新しい商談を始めますか？')) return; stop(); }
@@ -2497,8 +2428,6 @@ dialog::backdrop { background: oklch(0% 0 0 / .4); backdrop-filter: blur(2px); }
     if (!target || !confirm(`「${titleOf(target)}」を端末から削除しますか？（写真も削除されます。元に戻せません）`)) return;
     if (id === S.id && running) stop();
     for (const im of await DB.imagesOf(id).catch(() => [])) await DB.del('images', im.id).catch(() => {});
-    Semantic.forget(id);
-    await DB.delWhere('vectors', 'sessionId', id).catch(() => {});
     await DB.del('sessions', id).catch(() => {});
     if (id === S.id) {
       clearTimeout(saveTimer); saveTimer = null;
@@ -2553,9 +2482,8 @@ dialog::backdrop { background: oklch(0% 0 0 / .4); backdrop-filter: blur(2px); }
     $('#yomiToggle').checked = P.yomi; updYomiInfo();
     $('#warpToggle').checked = P.warp;
     $('#dropOrigToggle').checked = P.dropOriginal;
-    $('#semanticToggle').checked = P.semantic;
     modelSelect.value = P.model; updModelInfo();
-    Photos.updInfo(); Semantic.updInfo();
+    Photos.updInfo();
     dlg.showModal();
   };
   $('#closeDlg').onclick = () => dlg.close();
@@ -2584,12 +2512,6 @@ dialog::backdrop { background: oklch(0% 0 0 / .4); backdrop-filter: blur(2px); }
     renderAll(); Photos.updInfo();
   };
   $('#dropOrigToggle').onchange = (e) => { P.dropOriginal = e.target.checked; savePrefs(); };
-  $('#semanticToggle').onchange = (e) => {
-    if (e.target.checked && !confirm('意味検索をオンにしますか？\n埋め込みモデル（約40MB）をダウンロードし、ブラウザに保存します。その後、録音していないときに過去の商談の索引を少しずつ作ります。')) { e.target.checked = false; return; }
-    P.semantic = e.target.checked; savePrefs();
-    if (P.semantic) Semantic.backfill(300); else Semantic.unload();
-    Semantic.updInfo(); renderDrawer(false);
-  };
   $('#clearPhotoModels').onclick = async () => {
     if (!confirm('ダウンロード済みの台形補正のライブラリを削除しますか？（次回使うときに再ダウンロードします）')) return;
     Workers.stop('cv');
@@ -2620,7 +2542,7 @@ dialog::backdrop { background: oklch(0% 0 0 / .4); backdrop-filter: blur(2px); }
   // ---------- 診断（メモリと処理の状態） ----------
   // iPhone の Safari はページからメモリ使用量を読めないため、載せているモデルのダウンロードサイズを目安として合計する
   const MEM_WARN = 250; // MB。省メモリの端末でこれを超えたら注意（LLM と別のモデルを同時に載せたくらい）
-  const JOB_LABEL = { warp: '台形補正', embed: '意味検索の索引', query: '検索語の解析' };
+  const JOB_LABEL = { warp: '台形補正' };
   const jobName = (label) => JOB_LABEL[String(label).split(':')[0]] || label;
   const Diag = (() => {
     let storage = null, storageAt = 0;
@@ -2723,7 +2645,9 @@ dialog::backdrop { background: oklch(0% 0 0 / .4); backdrop-filter: blur(2px); }
     P.current = S.id; savePrefs();
     if (S.segs.length) $('#recLabel').textContent = '録音再開';
     tick(); renderAll(); updWL(); AI.apply(); Yomi.apply(); renderDrawer();
-    Photos.kick(); Semantic.backfill();
+    Photos.kick();
+    // 廃止した意味検索の埋め込みモデル（ruri-v3）がキャッシュに残っていれば消す（AI メモのモデルは残す）
+    caches.open('transformers-cache').then(async (c) => { for (const k of await c.keys()) if (k.url.includes('ruri-v3')) await c.delete(k); }).catch(() => {});
     // 廃止した端末内 OCR のモデル（約70MB）が残っていれば消す
     caches.delete('ocr-models-v1').catch(() => {});
     // 前回、重い処理の途中でページが終了していたら知らせる（タップで診断を開く）
