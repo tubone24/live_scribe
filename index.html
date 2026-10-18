@@ -88,6 +88,23 @@ header {
 }
 .hd-right { margin-left: auto; display: flex; align-items: center; gap: 2px; }
 #wl.ok { background: var(--green-tint); color: var(--green); }
+/* 載っているモデルの合計（タップで診断を開く） */
+#memChip { background: var(--field); color: var(--ink-2); margin-right: 4px; }
+#memChip.warn { background: var(--orange-tint); color: var(--orange); }
+#memChip .dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+#memChip.busy .dot { animation: pix 1.1s infinite; }
+/* 診断（メモリと処理の状態） */
+.diag-sum { display: flex; align-items: baseline; gap: 8px; margin: 2px 2px 4px; }
+.diag-sum b { font-size: 28px; font-weight: 600; letter-spacing: -.01em; }
+.diag-sum span { font-size: 12px; color: var(--ink-3); }
+.diag-bar { height: 6px; border-radius: 999px; background: var(--field); overflow: hidden; margin: 6px 2px 2px; }
+.diag-bar i { display: block; height: 100%; background: var(--accent); border-radius: inherit; transition: width .3s; }
+.diag-bar.warn i { background: var(--orange); }
+.st { font-size: 11px; font-weight: 600; padding: 1px 7px; border-radius: 6px; background: var(--field); color: var(--ink-3); white-space: nowrap; }
+.st.on { background: var(--accent-tint); color: var(--accent); }
+.st.busy { background: var(--orange-tint); color: var(--orange); }
+.diag-log { font-size: 12px; color: var(--ink-2); line-height: 1.7; }
+.diag-log .when { color: var(--ink-3); margin-right: 6px; }
 #wl.ng { background: var(--orange-tint); color: var(--orange); }
 #wl:empty { display: none; }
 .icon-btn {
@@ -396,6 +413,7 @@ dialog::backdrop { background: oklch(0% 0 0 / .4); backdrop-filter: blur(2px); }
     <span id="meter" class="meter" title="マイクの音量"><i></i><i></i><i></i><i></i><i></i></span>
   </div>
   <div class="hd-right">
+    <button id="memChip" class="chip" aria-label="メモリと処理の状態" hidden><span class="dot"></span><span id="memChipText"></span></button>
     <span id="wl" class="chip"></span>
     <button class="icon-btn" id="fullBtn" aria-label="全文を表示">
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5M9 13h6M9 17h4"/></svg>
@@ -602,6 +620,10 @@ dialog::backdrop { background: oklch(0% 0 0 / .4); backdrop-filter: blur(2px); }
         <span class="grow">いつも zip で書き出す<small>テキスト（メモ・文字起こし）と写真（images/）を常に1つの zip にまとめます。オフにすると写真がない回は .txt になります。</small></span>
         <span class="switch"><input type="checkbox" id="zipToggle"><span></span></span>
       </label>
+      <button id="diagOpen">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="7" width="16" height="10" rx="2"/><path d="M8 7V4M12 7V4M16 7V4M8 20v-3M12 20v-3M16 20v-3"/></svg>
+        メモリと処理の状態
+      </button>
       <button id="downloadAll">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12M8 11l4 4 4-4"/><path d="M5 21h14"/></svg>
         この商談の全文をダウンロード
@@ -664,6 +686,19 @@ dialog::backdrop { background: oklch(0% 0 0 / .4); backdrop-filter: blur(2px); }
       <div class="img-actions"><button class="pill" id="ocrRedo">OCR し直す</button></div>
     </div>
     <p class="hint" id="imgHint">写真の文字は長押しで選択できます（iPhone のテキスト認識）。</p>
+  </div>
+</dialog>
+
+<!-- 診断：載っているモデル・処理待ち・保存容量・異常終了の記録 -->
+<dialog id="diagDlg">
+  <div class="sheet">
+    <div class="sheet-head">
+      <h2 tabindex="-1" autofocus>メモリと処理の状態</h2>
+      <button class="icon-btn" id="closeDiag" aria-label="閉じる">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>
+      </button>
+    </div>
+    <div id="diagBody"></div>
   </div>
 </dialog>
 
@@ -767,6 +802,37 @@ dialog::backdrop { background: oklch(0% 0 0 / .4); backdrop-filter: blur(2px); }
   P.warp ??= false; P.ocr ??= 'off'; P.ocrPast ??= false; P.semantic ??= false; P.dropOriginal ??= false;
   if (P.v !== 2) { P.model = 'lfm2-350m'; P.v = 2; delete P.loaded; }
   const savePrefs = () => { try { localStorage.setItem(PKEY, JSON.stringify(P)); } catch {} };
+
+  // ---------- 異常終了の検出（iPhone はメモリが足りないとタブを黙って再読み込みする） ----------
+  // 重い処理の間だけ印を付けておき、印が残ったまま次に起動したら「その処理中に落ちた」と記録する。
+  // 普通に閉じたときは pagehide で印を消す
+  const Inflight = (() => {
+    const IKEY = 'livescribe.inflight', CKEY = 'livescribe.crashes';
+    const read = (k) => { try { return JSON.parse(localStorage.getItem(k)) || null; } catch { return null; } };
+    const write = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} };
+    const prev = read(IKEY);
+    const crashes = read(CKEY) || [];
+    let fresh = null;
+    if (prev?.items && Object.keys(prev.items).length) {
+      fresh = { at: Date.now(), what: Object.values(prev.items).map((v) => v.label), bg: !!prev.bg };
+      crashes.unshift(fresh); crashes.length = Math.min(crashes.length, 5);
+      write(CKEY, crashes);
+    }
+    const cur = { items: {}, bg: false };
+    const sync = () => write(IKEY, cur);
+    sync();
+    window.addEventListener('pagehide', () => { try { localStorage.removeItem(IKEY); } catch {} });
+    window.addEventListener('pageshow', (e) => { if (e.persisted) sync(); });
+    document.addEventListener('visibilitychange', () => { cur.bg = document.visibilityState === 'hidden'; sync(); });
+    return {
+      set: (key, label) => { cur.items[key] = { label, at: Date.now() }; sync(); },
+      clear: (key) => { if (cur.items[key]) { delete cur.items[key]; sync(); } },
+      now: () => Object.values(cur.items).map((v) => v.label),
+      crashes: () => crashes,
+      fresh: () => fresh,
+      clearLog: () => { crashes.length = 0; write(CKEY, []); },
+    };
+  })();
 
   // 書き込みはまとめて行う（発言のたびに IndexedDB へ書かない）
   let saveTimer = null;
@@ -1231,6 +1297,7 @@ dialog::backdrop { background: oklch(0% 0 0 / .4); backdrop-filter: blur(2px); }
     if (!SR) return banner('このブラウザは音声認識に対応していません。iPhone の Safari で開いてください。');
     banner('');
     running = true; errStreak = 0; lastResultAt = Date.now(); stalled = false;
+    AI.maybeRun(); // メモリ節約で外していた LLM を、話し始める前に読み込み直す
     if (!S.startedAt) { S.startedAt = Date.now(); save(); }
     $('#recLabel').textContent = '停止'; $('#recBtn').classList.add('running');
     lockOn(); startRec(); Meter.start();
@@ -1341,6 +1408,9 @@ dialog::backdrop { background: oklch(0% 0 0 / .4); backdrop-filter: blur(2px); }
 
     const render = () => {
       let html = '';
+      if (state === 'suspended') {
+        html += '<div class="ai-empty">写真の処理などでメモリを使うため、AI メモのモデルを一時的に外しています。録音を始めると自動で読み込み直します。<br><button id="aiResume">今すぐ読み込む</button></div>';
+      }
       if (state === 'idle' || state === 'crashed') {
         const msg = state === 'crashed'
           ? '前回、モデルの読み込み中にページが再読み込みされました。<b>メモリ不足</b>の可能性が高いので、設定でより軽いモデルを選んでから読み込んでください。'
@@ -1356,6 +1426,10 @@ dialog::backdrop { background: oklch(0% 0 0 / .4); backdrop-filter: blur(2px); }
       html += '</ul></div>';
       body.innerHTML = html;
       $('#aiLoad')?.addEventListener('click', load);
+      $('#aiResume')?.addEventListener('click', () => {
+        wantResume = true;
+        if (Jobs.busy()) toast('写真の処理が終わったら読み込みます'); else resume();
+      });
     };
 
     // 話題をタップすると、その区間の最初の発言までスクロールして光らせる
@@ -1369,6 +1443,7 @@ dialog::backdrop { background: oklch(0% 0 0 / .4); backdrop-filter: blur(2px); }
     const speechText = (segs) => segs.filter((s) => s.text).map((s) => (s.kind === 'note' ? `（メモ）${s.text}` : s.kind === 'image' ? `（写真）${s.text}` : s.text)).join('\n');
     const ask = (messages, maxTokens) => new Promise((resolve, reject) => {
       job.resolve = resolve; job.reject = reject;
+      Inflight.set('llm', 'AI メモ（推論）');
       worker.postMessage({ type: 'run', messages, maxTokens });
     });
 
@@ -1432,17 +1507,21 @@ dialog::backdrop { background: oklch(0% 0 0 / .4); backdrop-filter: blur(2px); }
       } else if (data.type === 'phase') {
         setStatus('モデルを展開中', { busy: true, progress: 1 });
       } else if (data.type === 'ready') {
+        Inflight.clear('llm');
         state = 'ready'; delete P.loading; savePrefs();
         navigator.storage?.persist?.().catch(() => {});
         setStatus('待機中'); render(); run();
       } else if (data.type === 'done' && job?.resolve) {
+        Inflight.clear('llm');
         const r = job.resolve; job.resolve = job.reject = null; r(data.text);
       } else if (data.type === 'error') {
+        Inflight.clear('llm');
         if (job?.reject) { const r = job.reject; job.resolve = job.reject = null; r(new Error(data.message)); }
         else fail(data.message);
       }
     };
     const fail = (msg) => {
+      Inflight.clear('llm');
       job = null; state = 'error'; delete P.loading; savePrefs();
       worker?.terminate(); worker = null;
       setStatus('エラー');
@@ -1463,6 +1542,7 @@ dialog::backdrop { background: oklch(0% 0 0 / .4); backdrop-filter: blur(2px); }
       worker.onerror = (e) => fail(e.message || 'Worker が停止しました');
       // 読み込み中にページごと落ちた場合に次回検出できるよう印を付けておく
       P.loading = P.model; savePrefs();
+      Inflight.set('llm', 'AI メモ（モデルの読み込み）');
       state = 'loading'; setStatus(cached ? 'キャッシュから読み込み中' : '読み込み中', { busy: true, progress: 0 }); render();
       worker.postMessage({ type: 'load', id: MODELS[P.model].id });
     }
@@ -1482,10 +1562,28 @@ dialog::backdrop { background: oklch(0% 0 0 / .4); backdrop-filter: blur(2px); }
       else { state = 'idle'; setStatus('未読み込み'); render(); }
     };
     const switchModel = () => { worker?.terminate(); worker = null; job = null; state = 'off'; apply(); };
-    const requestTitle = (sess) => { pendingTitle = sess; run(); };
+    // 低メモリの端末で写真の処理などを行う間は、モデルを外してメモリを空ける（P.ai はオンのまま）
+    const suspend = () => {
+      if (!P.ai || !worker || !['ready', 'idle'].includes(state)) return;
+      worker.terminate(); worker = null; job = null;
+      Inflight.clear('llm');
+      state = 'suspended'; setStatus('一時停止（メモリ節約）'); render();
+    };
+    // 読み込み直す前に、手の空いている OCR などの Worker を止めておく
+    let wantResume = false;
+    const resume = () => { if (state !== 'suspended') return; wantResume = false; Workers.stopIdle(); state = 'off'; apply(); };
+    const maybeRun = () => {
+      if (!P.ai) return;
+      // 一時停止中は、録音中か商談名の作成待ちのときだけ読み込み直す（写真の処理が終わるまでは待つ）
+      if (state === 'suspended') { if ((running || pendingTitle || wantResume) && !Jobs.busy()) resume(); return; }
+      run();
+    };
+    const requestTitle = (sess) => { pendingTitle = sess; maybeRun(); };
+    const mbOfModel = () => +(MODELS[P.model].size.match(/約(\d+)MB/)?.[1] || 0);
+    const info = () => ({ state, loaded: !!worker, label: `AI メモ（${MODELS[P.model].label}）`, mb: mbOfModel() });
     // 読み検索の解析器と LLM が同時に重い処理をしないよう、推論中・読み込み中を外から見られるようにする
     const busy = () => P.ai && (state === 'busy' || state === 'loading');
-    return { apply, switchModel, render, maybeRun: () => { if (P.ai) run(); }, requestTitle, busy };
+    return { apply, switchModel, render, maybeRun, requestTitle, busy, suspend, resume, info };
   })();
 
   // ---------- 重い処理の Worker 管理（台形補正・OCR・埋め込み） ----------
@@ -1495,13 +1593,19 @@ dialog::backdrop { background: oklch(0% 0 0 / .4); backdrop-filter: blur(2px); }
   const Workers = (() => {
     const IDLE_MS = 60000;
     const defs = new Map(), live = new Map();
-    // url: Worker のスクリプト、module: type:'module' で起動するか、onEvent: id の付かないメッセージ（進捗など）の受け口
-    const define = (name, { url, module = false, onEvent = null }) => { defs.set(name, { url, module, onEvent }); };
+    // url: Worker のスクリプト、module: type:'module' で起動するか、onEvent: id の付かないメッセージ（進捗など）の受け口、
+    // label と mb: 診断画面と異常終了の記録に出す名前と、載せたときのメモリの目安（ダウンロードサイズ程度）
+    const define = (name, { url, module = false, onEvent = null, label = name, mb = 0 }) => { defs.set(name, { url, module, onEvent, label, mb }); };
+    const busyMark = (name, w) => {
+      if (w.pending.size) Inflight.set(`w:${name}`, defs.get(name).label);
+      else Inflight.clear(`w:${name}`);
+    };
     const stop = (name, reason = 'Worker を停止しました') => {
       const w = live.get(name);
       if (!w) return;
       live.delete(name); clearTimeout(w.timer); w.worker.terminate();
       for (const p of w.pending.values()) p.reject(new Error(reason));
+      Inflight.clear(`w:${name}`);
     };
     const start = (name) => {
       const d = defs.get(name);
@@ -1512,7 +1616,7 @@ dialog::backdrop { background: oklch(0% 0 0 / .4); backdrop-filter: blur(2px); }
       w.worker.onmessage = ({ data }) => {
         const p = data?.id != null && w.pending.get(data.id);
         if (!p) { d.onEvent?.(data); return; }
-        w.pending.delete(data.id); idle(name, w);
+        w.pending.delete(data.id); idle(name, w); busyMark(name, w);
         if (data.type === 'error') p.reject(new Error(data.message || 'Worker でエラーが発生しました'));
         else p.resolve(data);
       };
@@ -1530,10 +1634,13 @@ dialog::backdrop { background: oklch(0% 0 0 / .4); backdrop-filter: blur(2px); }
       const w = live.get(name) || start(name);
       clearTimeout(w.timer);
       const id = ++w.seq;
-      w.pending.set(id, { resolve, reject });
+      w.pending.set(id, { resolve, reject }); busyMark(name, w);
       w.worker.postMessage({ ...msg, id }, transfer);
     });
-    return { define, call, stop, alive: (name) => live.has(name) };
+    // 手の空いている Worker をすべて止める（LLM を読み込み直す前に、メモリを空けておく）
+    const stopIdle = () => { for (const [n, w] of live) if (!w.pending.size) stop(n, 'swap'); };
+    const list = () => [...defs].map(([name, d]) => ({ name, label: d.label, mb: d.mb, alive: live.has(name), busy: !!live.get(name)?.pending.size }));
+    return { define, call, stop, stopIdle, list, alive: (name) => live.has(name) };
   })();
 
   // ---------- ジョブキュー（OCR・埋め込みと AI メモの LLM を同時に走らせない） ----------
@@ -1541,11 +1648,20 @@ dialog::backdrop { background: oklch(0% 0 0 / .4); backdrop-filter: blur(2px); }
   const Jobs = (() => {
     const queue = [];
     let current = null, seq = 0, waitTimer = 0;
+    // 検索語の埋め込み以外は重い処理（モデルを載せる）
+    const heavy = (j) => j.label !== 'query';
+    // 低メモリの端末で AI メモを使って録音している間は、重い処理を録音停止まで待たせる（LLM と同時に載せない）
+    const held = (j) => LOW_MEM && heavy(j) && running && P.ai;
     const pump = () => {
+      clearTimeout(waitTimer);
       if (current || !queue.length) return;
       // LLM の読み込み・推論中は待つ
-      if (AI.busy()) { clearTimeout(waitTimer); waitTimer = setTimeout(pump, 1000); return; }
-      const j = current = queue.shift();
+      if (AI.busy()) { waitTimer = setTimeout(pump, 1000); return; }
+      const k = queue.findIndex((j) => !held(j));
+      if (k < 0) { waitTimer = setTimeout(pump, 2000); return; }
+      const j = current = queue.splice(k, 1)[0];
+      // 低メモリの端末では、重い処理の前に LLM と読み検索の辞書を外す（LLM は次に必要になったら読み込み直す）
+      if (LOW_MEM && heavy(j)) { AI.suspend(); if (Yomi.loaded()) Yomi.unload(); }
       Promise.resolve().then(j.fn).then(j.resolve, j.reject).finally(() => {
         current = null;
         AI.maybeRun();
@@ -1565,7 +1681,7 @@ dialog::backdrop { background: oklch(0% 0 0 / .4); backdrop-filter: blur(2px); }
         j.reject(new DOMException('取り消しました', 'AbortError'));
       }
     };
-    return { add, cancel, busy: () => !!current, size: () => queue.length + (current ? 1 : 0), current: () => current?.label ?? null };
+    return { add, cancel, busy: () => !!current, size: () => queue.length + (current ? 1 : 0), current: () => current?.label ?? null, held: () => queue.filter(held).length, poke: pump };
   })();
 
   const mbOf = (n) => `${Math.round(n / 1e6)}MB`;
@@ -1573,8 +1689,8 @@ dialog::backdrop { background: oklch(0% 0 0 / .4); backdrop-filter: blur(2px); }
   // ---------- 写真の台形補正と OCR（撮った写真はすぐ保存・表示し、補正と文字認識は裏で1枚ずつ行う） ----------
   const OCR_MODEL = 'v6-small', OCR_ENGINE = 'paddle-v6-small';
   const PHOTO_CACHES = ['cv-lib-v1', 'ocr-models-v1'];
-  Workers.define('cv', { url: 'cv-worker.js' });
-  Workers.define('ocr', { url: 'ocr-worker.js', module: true, onEvent: (d) => { if (d.type === 'progress') Photos.progress(d); } });
+  Workers.define('cv', { url: 'cv-worker.js', label: '台形補正（OpenCV.js）', mb: 10 });
+  Workers.define('ocr', { url: 'ocr-worker.js', module: true, label: 'OCR（PaddleOCR）', mb: 70, onEvent: (d) => { if (d.type === 'progress') Photos.progress(d); } });
   const Photos = (() => {
     const pending = new Set();   // 順番待ち・処理中のジョブ（同じ写真を二重に積まない）
     const ocrInput = new Map();  // 補正直後の OCR 用画像（CLAHE 済み）。保存せず、なければ保存画像を使う
@@ -1730,7 +1846,7 @@ dialog::backdrop { background: oklch(0% 0 0 / .4); backdrop-filter: blur(2px); }
   const SEM_MODEL = 'ruri-v3-30m-q8';
   // ruri-v3 は無関係な文どうしでも 0.75 前後になるため、設計時の 0.5 ではなく 0.8 を下限にする
   const SEM_MIN = 0.8;
-  Workers.define('embed', { url: 'embed-worker.js', module: true, onEvent: (d) => { if (d.type === 'progress') Semantic.progress(d); } });
+  Workers.define('embed', { url: 'embed-worker.js', module: true, label: '意味検索（ruri-v3）', mb: 40, onEvent: (d) => { if (d.type === 'progress') Semantic.progress(d); } });
   const Semantic = (() => {
     let vecs = null, loading = null, dl = null, touchTimer = 0, bfTimer = 0;
     const indexing = new Set(), gone = new Set();
@@ -2069,7 +2185,7 @@ dialog::backdrop { background: oklch(0% 0 0 / .4); backdrop-filter: blur(2px); }
     const load = () => {
       if (!P.yomi || worker) return;
       // LLM の読み込み・推論中は辞書を載せない（iPhone のメモリ対策）
-      if (AI.busy()) { setTimeout(load, 3000); return; }
+      if (AI.busy() || (LOW_MEM && Jobs.busy())) { setTimeout(load, 3000); return; }
       worker = new Worker('yomi-worker.js');
       worker.onmessage = onMessage;
       worker.onerror = (e) => { failAll(); worker?.terminate(); worker = null; setState('error', e.message || 'Worker が停止しました'); };
@@ -2177,7 +2293,7 @@ dialog::backdrop { background: oklch(0% 0 0 / .4); backdrop-filter: blur(2px); }
       else updYomiInfo();
     };
     return {
-      apply, touch, query, cachedSize, unload,
+      apply, touch, query, cachedSize, unload, loaded: () => !!worker,
       warm: () => { if (P.yomi && state !== 'ready') load(); },
       status: () => ({ state, progress }),
     };
@@ -2475,6 +2591,84 @@ dialog::backdrop { background: oklch(0% 0 0 / .4); backdrop-filter: blur(2px); }
     download(file);
   };
 
+  // ---------- 診断（メモリと処理の状態） ----------
+  // iPhone の Safari はページからメモリ使用量を読めないため、載せているモデルのダウンロードサイズを目安として合計する
+  const MEM_WARN = 250; // MB。省メモリの端末でこれを超えたら注意（LLM と別のモデルを同時に載せたくらい）
+  const JOB_LABEL = { ocr: '写真の文字認識', warp: '台形補正', embed: '意味検索の索引', query: '検索語の解析' };
+  const jobName = (label) => JOB_LABEL[String(label).split(':')[0]] || label;
+  const Diag = (() => {
+    let storage = null, storageAt = 0;
+    const parts = () => {
+      const ai = AI.info();
+      const list = [
+        { label: ai.label, mb: ai.mb, on: ai.loaded, busy: AI.busy(), note: ai.state === 'suspended' ? '一時停止中（録音を始めると読み込み直します）' : '', unload: () => AI.suspend() },
+        { label: '読み検索の辞書（kuromoji）', mb: 18, on: Yomi.loaded(), busy: false, note: '', unload: () => Yomi.unload() },
+      ];
+      for (const w of Workers.list()) list.push({ label: w.label, mb: w.mb, on: w.alive, busy: w.busy, note: '', unload: () => Workers.stop(w.name, 'manual') });
+      return list;
+    };
+    const total = (list = parts()) => list.reduce((n, p) => n + (p.on ? p.mb : 0), 0);
+    const updChip = () => {
+      const t = total(), n = Jobs.size();
+      const chip = $('#memChip');
+      chip.hidden = !t && !n;
+      if (chip.hidden) return;
+      $('#memChipText').textContent = `${t}MB${n ? ` · 処理${n}` : ''}`;
+      chip.classList.toggle('busy', Jobs.busy() || AI.busy());
+      chip.classList.toggle('warn', LOW_MEM && t >= MEM_WARN);
+    };
+    const render = async () => {
+      if (!$('#diagDlg').open) return;
+      if (Date.now() - storageAt > 5000) {
+        storageAt = Date.now();
+        try { storage = { ...(await navigator.storage.estimate()), persisted: await navigator.storage.persisted?.() }; } catch { storage = null; }
+      }
+      const list = parts(), t = total(list);
+      const cap = LOW_MEM ? 400 : 1000;
+      const crashes = Inflight.crashes();
+      const held = Jobs.held();
+      $('#diagBody').innerHTML =
+        `<div class="diag-sum"><b>約${t}MB</b><span>いま読み込んでいるモデルの合計（目安）</span></div>` +
+        `<div class="diag-bar${LOW_MEM && t >= MEM_WARN ? ' warn' : ''}"><i style="width:${Math.min(100, (t / cap) * 100)}%"></i></div>` +
+        `<p class="hint" style="margin-top:8px">${LOW_MEM
+          ? 'この端末は省メモリ扱いです。重いモデルは同時に1つだけ載せ、写真の処理などの前に AI メモのモデルを外します。AI メモを使って録音している間は、写真の補正と OCR を録音停止まで待たせます。'
+          : 'この端末はメモリに余裕があるため、モデルを外さずに使います。'}</p>` +
+        '<div class="section-title">モデル</div><div class="menu">' +
+        list.map((p, i) => `<div class="row"><span class="grow">${esc(p.label)}<small>約${p.mb}MB${p.note ? ` · ${esc(p.note)}` : ''}</small></span>` +
+          `<span class="st ${p.busy ? 'busy' : p.on ? 'on' : ''}">${p.busy ? '処理中' : p.on ? '読み込み済み' : '未読み込み'}</span>` +
+          (p.on && !p.busy ? `<button class="pill" data-unload="${i}" style="height:30px;font-size:12px;padding:0 10px">外す</button>` : '') + '</div>').join('') +
+        '</div>' +
+        '<div class="section-title">処理</div><div class="menu">' +
+        `<div class="row"><span class="grow">${Jobs.current() ? `実行中：${esc(jobName(Jobs.current()))}` : '実行中の処理はありません'}<small>順番待ち ${Math.max(0, Jobs.size() - (Jobs.busy() ? 1 : 0))}件${held ? `（うち録音停止後に実行 ${held}件）` : ''}</small></span></div>` +
+        `<div class="row"><span class="grow">端末内の保存容量<small>${storage?.usage != null ? `使用 ${mbOf(storage.usage)}（上限の目安 ${mbOf(storage.quota)}）` : '取得できません'}${storage ? ` · ${storage.persisted ? '自動削除から保護済み' : '保護なし（容量が足りないと消されることがあります）'}` : ''}</small></span></div>` +
+        '</div>' +
+        '<div class="section-title">異常終了の記録</div><div class="menu">' +
+        (crashes.length
+          ? crashes.map((c) => `<div class="row"><span class="grow diag-log"><span class="when mono">${esc(fmtDate(c.at))}</span>${esc(c.what.join('、'))}の処理中に終了${c.bg ? '（バックグラウンド中）' : ''}</span></div>`).join('') +
+            '<button id="diagClearLog">記録を消す</button>'
+          : '<div class="row"><span class="grow diag-log">記録はありません</span></div>') +
+        '</div>' +
+        '<div class="menu"><button id="diagUnloadAll">すべてのモデルを外してメモリを空ける</button></div>' +
+        '<p class="hint">より正確に測るには、iPhone を Mac につなぎ、Mac の Safari の「開発」メニュー → この iPhone → このページ →「タイムライン」で「メモリ」を記録しながら操作してください。iPhone は、メモリが足りなくなると何も表示せずにページを読み込み直します。そのときは上の「異常終了の記録」に、何の処理中だったかが残ります。</p>';
+    };
+    $('#diagBody').addEventListener('click', (e) => {
+      const u = e.target.closest('[data-unload]');
+      if (u) { parts()[+u.dataset.unload]?.unload(); toast('モデルを外しました'); return render(); }
+      if (e.target.id === 'diagClearLog') { Inflight.clearLog(); return render(); }
+      if (e.target.id === 'diagUnloadAll') {
+        for (const p of parts()) if (p.on && !p.busy) p.unload();
+        toast('使っていないモデルをすべて外しました'); render();
+      }
+    });
+    const open = () => { $('#dlg').close(); $('#diagDlg').showModal(); storageAt = 0; render(); };
+    $('#memChip').onclick = open;
+    $('#diagOpen').onclick = open;
+    $('#closeDiag').onclick = () => $('#diagDlg').close();
+    $('#diagDlg').addEventListener('click', (e) => { if (e.target.id === 'diagDlg') $('#diagDlg').close(); });
+    setInterval(() => { updChip(); render(); }, 1000);
+    return { open };
+  })();
+
   // ---------- init ----------
   (async () => {
     // ホーム画面から独立したアプリ画面で開かれた場合は、Safari で開き直すよう案内する
@@ -2503,6 +2697,12 @@ dialog::backdrop { background: oklch(0% 0 0 / .4); backdrop-filter: blur(2px); }
     if (S.segs.length) $('#recLabel').textContent = '録音再開';
     tick(); renderAll(); updWL(); AI.apply(); Yomi.apply(); renderDrawer();
     Photos.kick(); Photos.backfill(); Semantic.backfill();
+    // 前回、重い処理の途中でページが終了していたら知らせる（タップで診断を開く）
+    const crash = Inflight.fresh();
+    if (crash) {
+      banner(`前回、${crash.what.join('、')}の処理中にページが終了しました${crash.bg ? '（バックグラウンド中）' : '。メモリ不足の可能性があります'}。タップで詳細`);
+      $('#banner').onclick = () => { banner(''); $('#banner').onclick = null; Diag.open(); };
+    }
   })();
 })();
 </script>
